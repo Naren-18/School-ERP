@@ -25,6 +25,9 @@ import { CollectFeePage } from './features/fees/CollectFeePage'
 import { FeeReportsPage } from './features/fees/FeeReportsPage'
 import { FeeSetupPage } from './features/fees/FeeSetupPage'
 import { ReceiptsPage } from './features/fees/ReceiptsPage'
+import { ExamSetupPage } from './features/exams/ExamSetupPage'
+import { MarksEntryPage } from './features/exams/MarksEntryPage'
+import { ResultsPage } from './features/exams/ResultsPage'
 import { AppShell } from './layout/AppShell'
 import { BrandTheme } from './layout/BrandTheme'
 import { FEE_STAFF, PRINCIPAL, PRINCIPAL_ADMIN, TEACHING } from './layout/menu'
@@ -77,6 +80,18 @@ export default function App() {
             <Route path="receipts" element={only(FEE_STAFF, <ReceiptsPage />)} />
             <Route path="reports" element={only(FEE_STAFF, <FeeReportsPage />)} />
             <Route path="setup" element={only(FEE_STAFF, <FeeSetupPage />)} />
+          </Route>
+          <Route
+            path="exams"
+            element={
+              <RequireModule module="exams">
+                <Outlet />
+              </RequireModule>
+            }
+          >
+            <Route index element={only(TEACHING, <MarksEntryPage />)} />
+            <Route path="results" element={only(TEACHING, <ResultsPage />)} />
+            <Route path="setup" element={only(PRINCIPAL_ADMIN, <ExamSetupPage />)} />
           </Route>
           <Route path="settings">
             <Route index element={<Navigate to="years" replace />} />

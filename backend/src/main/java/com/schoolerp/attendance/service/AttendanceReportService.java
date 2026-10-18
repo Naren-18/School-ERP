@@ -195,6 +195,18 @@ public class AttendanceReportService {
 		return days;
 	}
 
+	/** Attendance totals of the given enrollments over a date range (report cards). */
+	@Transactional(readOnly = true)
+	public AttendanceDto.Counts summary(List<Long> enrollmentIds, LocalDate from, LocalDate to) {
+		if (enrollmentIds.isEmpty()) {
+			return count(List.of());
+		}
+		return count(attendance.findBySchoolIdAndEnrollmentIdInAndDateBetween(TenantContext.require(), enrollmentIds, from, to)
+			.stream()
+			.map(Attendance::getStatus)
+			.toList());
+	}
+
 	private static AttendanceDto.Counts count(List<Attendance.Status> statuses) {
 		Map<Attendance.Status, Long> c = statuses.stream()
 			.filter(Objects::nonNull)

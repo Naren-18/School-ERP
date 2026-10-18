@@ -1,21 +1,12 @@
 package com.schoolerp.fee.service;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.math.BigDecimal;
-import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
-import java.util.Base64;
-import java.util.Locale;
 import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.util.HtmlUtils;
 
-import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import com.schoolerp.common.pdf.HtmlPdf;
 import com.schoolerp.fee.dto.FeeDto;
 import com.schoolerp.school.entity.School;
 import com.schoolerp.school.service.SchoolService;
@@ -27,11 +18,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ReceiptPdfService {
 
-	/** DejaVu Sans from the jasperreports-fonts jar: it has the ₹ glyph, unlike the built-in PDF fonts. */
-	static final String FONT_REGULAR = "/net/sf/jasperreports/fonts/dejavu/DejaVuSans.ttf";
-
-	static final String FONT_BOLD = "/net/sf/jasperreports/fonts/dejavu/DejaVuSans-Bold.ttf";
-
 	private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
 	private final FeeCollectionService collection;
@@ -42,50 +28,24 @@ public class ReceiptPdfService {
 	public byte[] receiptPdf(Long receiptId) {
 		FeeDto.Receipt r = collection.receipt(receiptId);
 		School school = schoolService.requireCurrent();
-		String logo = schoolService.currentLogo()
-			.map(l -> "<img class=\"logo\" src=\"data:" + l.contentType() + ";base64,"
-					+ Base64.getEncoder().encodeToString(l.content()) + "\"/>")
-			.orElse("");
-		return render(html(r, school, logo));
-	}
-
-	static byte[] render(String xhtml) {
-		try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-			PdfRendererBuilder builder = new PdfRendererBuilder();
-			builder.useFont(() -> font(FONT_REGULAR), "DejaVu Sans", 400, PdfRendererBuilder.FontStyle.NORMAL, true);
-			builder.useFont(() -> font(FONT_BOLD), "DejaVu Sans", 700, PdfRendererBuilder.FontStyle.NORMAL, true);
-			builder.withHtmlContent(xhtml, null);
-			builder.toStream(out);
-			builder.run();
-			return out.toByteArray();
-		}
-		catch (IOException ex) {
-			throw new UncheckedIOException("Could not create the PDF", ex);
-		}
-	}
-
-	static InputStream font(String path) {
-		InputStream in = ReceiptPdfService.class.getResourceAsStream(path);
-		if (in == null) {
-			throw new IllegalStateException("Font " + path + " is missing from the classpath (jasperreports-fonts)");
-		}
-		return in;
+		String logo = schoolService.currentLogo().map(l -> HtmlPdf.img(l.content(), l.contentType(), "logo")).orElse("");
+		return HtmlPdf.render(html(r, school, logo));
 	}
 
 	private static String html(FeeDto.Receipt r, School school, String logo) {
 		StringBuilder rows = new StringBuilder();
 		int n = 1;
 		for (FeeDto.ReceiptLine line : r.lines()) {
-			rows.append("<tr><td>").append(n++).append("</td><td>").append(esc(line.feeHeadName())).append(" – ")
-				.append(esc(line.installmentName())).append("</td><td class=\"num\">").append(inr(line.amount()))
+			rows.append("<tr><td>").append(n++).append("</td><td>").append(HtmlPdf.esc(line.feeHeadName())).append(" – ")
+				.append(HtmlPdf.esc(line.installmentName())).append("</td><td class=\"num\">").append(HtmlPdf.inr(line.amount()))
 				.append("</td></tr>");
 		}
 		String contact = contactLine(school);
-		String reference = r.referenceNo() == null ? "" : " · Ref. " + esc(r.referenceNo());
+		String reference = r.referenceNo() == null ? "" : " · Ref. " + HtmlPdf.esc(r.referenceNo());
 		String cancelled = !r.cancelled() ? ""
 				: "<div class=\"cancelled\">CANCELLED</div><p class=\"cancel-note\">Cancelled on "
-						+ esc(r.cancelledAt().format(DMY)) + " by " + esc(r.cancelledByName()) + ": "
-						+ esc(r.cancelReason()) + "</p>";
+						+ HtmlPdf.esc(r.cancelledAt().format(DMY)) + " by " + HtmlPdf.esc(r.cancelledByName()) + ": "
+						+ HtmlPdf.esc(r.cancelReason()) + "</p>";
 		return """
 				<!DOCTYPE html>
 				<html><head><meta charset="UTF-8"/><style>
@@ -124,27 +84,19 @@ public class ReceiptPdfService {
 				<div>Paid by <b>%s</b>%s</div>
 				<div class="sign">Received by %s<br/><span class="muted">Computer-generated receipt</span></div>
 				</body></html>
-				""".formatted(esc(school.getPrimaryColor()), logo, esc(school.getName()), contact, cancelled,
-				esc(r.receiptNo()), r.paidOn().format(DMY), esc(r.studentName()), esc(r.admissionNo()),
-				esc(r.classLabel()), esc(r.academicYearName()), rows, inr(r.totalAmount()), esc(r.amountInWords()),
-				esc(r.paymentMode().label()), reference, esc(r.collectedByName()));
-	}
-
-	/** ₹1,23,456.00 (Indian grouping). */
-	static String inr(BigDecimal amount) {
-		return esc(NumberFormat.getCurrencyInstance(Locale.of("en", "IN")).format(amount));
+				""".formatted(HtmlPdf.esc(school.getPrimaryColor()), logo, HtmlPdf.esc(school.getName()), contact, cancelled,
+				HtmlPdf.esc(r.receiptNo()), r.paidOn().format(DMY), HtmlPdf.esc(r.studentName()), HtmlPdf.esc(r.admissionNo()),
+				HtmlPdf.esc(r.classLabel()), HtmlPdf.esc(r.academicYearName()), rows, HtmlPdf.inr(r.totalAmount()), HtmlPdf.esc(r.amountInWords()),
+				HtmlPdf.esc(r.paymentMode().label()), reference, HtmlPdf.esc(r.collectedByName()));
 	}
 
 	/** Address · phone · email, skipping blanks. */
 	private static String contactLine(School school) {
 		return String.join(" · ", Stream.of(school.getAddress(), school.getPhone(), school.getEmail())
 			.filter(s -> s != null && !s.isBlank())
-			.map(ReceiptPdfService::esc)
+			.map(HtmlPdf::esc)
 			.toList());
 	}
 
-	private static String esc(String s) {
-		return s == null ? "" : HtmlUtils.htmlEscape(s, "UTF-8");
-	}
 
 }

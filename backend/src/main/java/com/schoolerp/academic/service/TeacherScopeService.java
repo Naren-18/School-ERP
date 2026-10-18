@@ -1,6 +1,7 @@
 package com.schoolerp.academic.service;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
@@ -33,6 +34,23 @@ public class TeacherScopeService {
 			.map(TeacherAssignment::getSectionId)
 			.forEach(ids::add);
 		return ids;
+	}
+
+	/** Is the teacher assigned this subject in this section (class teacher alone is not enough)? */
+	@Transactional(readOnly = true)
+	public boolean teaches(Long teacherId, Long sectionId, Long subjectId) {
+		return assignments.findBySchoolIdAndSectionIdAndSubjectId(TenantContext.require(), sectionId, subjectId)
+			.filter(a -> a.getTeacherId().equals(teacherId))
+			.isPresent();
+	}
+
+	/** (sectionId, subjectId) pairs the teacher is assigned. */
+	@Transactional(readOnly = true)
+	public Set<List<Long>> assignedPairs(Long teacherId) {
+		Set<List<Long>> pairs = new HashSet<>();
+		assignments.findBySchoolIdAndTeacherId(TenantContext.require(), teacherId)
+			.forEach(a -> pairs.add(List.of(a.getSectionId(), a.getSubjectId())));
+		return pairs;
 	}
 
 }

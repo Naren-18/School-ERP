@@ -169,23 +169,23 @@ Tests:
 ## Phase 6 — Exams, marks & report cards
 
 Backend:
-- [ ] Grading scales + bands CRUD; seed two presets: "TS state CCE" and "CBSE 9-point"
-- [ ] Exams per year (name, order, weightage, grading scale)
-- [ ] Exam subjects per class (max marks, pass marks, date); "apply to all classes" helper
-- [ ] Marks entry per section + exam subject (bulk upsert, absent flag); teachers only for their assigned subject+section
-- [ ] Publish/unpublish exam (locks marks entry when published)
-- [ ] Result computation service: per subject %, grade from band, totals, overall %/grade, weighted final result across exams, pass/fail
-- [ ] Report card PDF per student and bulk per section (one PDF), using a per-school HTML template
+- [x] Grading scales + bands CRUD; seed two presets: "TS state CCE" and "CBSE 9-point"
+- [x] Exams per year (name, order, weightage, grading scale)
+- [x] Exam subjects per class (max marks, pass marks, date); "apply to all classes" helper
+- [x] Marks entry per section + exam subject (bulk upsert, absent flag); teachers only for their assigned subject+section
+- [x] Publish/unpublish exam (locks marks entry when published)
+- [x] Result computation service: per subject %, grade from band, totals, overall %/grade, weighted final result across exams, pass/fail
+- [x] Report card PDF per student and bulk per section (one PDF), using a per-school HTML template
 
 Frontend:
-- [ ] Exam setup pages
-- [ ] Marks entry grid (students × one subject), keyboard-friendly, works on phone
-- [ ] Section result sheet (students × subjects) with export
-- [ ] Report card preview + download; student profile → Marks tab
+- [x] Exam setup pages
+- [x] Marks entry grid (students × one subject), keyboard-friendly, works on phone
+- [x] Section result sheet (students × subjects) with export
+- [x] Report card preview + download; student profile → Marks tab
 
 Tests:
-- [ ] Grade calculation edge cases (boundaries, absent, weightage)
-- [ ] Teacher restriction; published exam is locked; isolation
+- [x] Grade calculation edge cases (boundaries, absent, weightage)
+- [x] Teacher restriction; published exam is locked; isolation
 
 **Acceptance:** Set up FA1 for Class 5, enter marks for a section, publish, download all report cards as one PDF.
 

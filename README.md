@@ -17,8 +17,9 @@ share one deployment; each school is fully isolated, with its own logins and dat
 | 3 | Students, guardians, enrollment, promotion, CSV import | Done |
 | 4 | Attendance: mobile marking, monthly register, school summary | Done |
 | 5 | Fees: plans, dues, collection, receipts (PDF), cancellation, reports | Done |
-| 6 | Exams, marks and report cards | Next |
-| 7–11 | Certificates, dashboard, demo data, deployment, polish | Not started |
+| 6 | Exams: grading scales, papers, marks entry, results, report cards (PDF) | Done |
+| 7 | Certificates | Next |
+| 8–11 | Dashboard, demo data, deployment, polish | Not started |
 
 ## Run locally
 
@@ -62,6 +63,9 @@ The sidebar shows only what your role allows.
 | Attendance summary (school-wide) | ✔ | ✔ | — | — |
 | Fee setup, collect fees, concessions, receipts, fee reports | ✔ | ✔ | ✔ | — |
 | Cancel a receipt | ✔ | — | ✔ | — |
+| Exam setup: grading scales, exams, papers, publish | ✔ | ✔ | — | — |
+| Enter marks | any section and subject | any section and subject | — | only their assigned subject in that section |
+| Results sheet, CSV, report cards (PDF), student Marks tab | all sections | all sections | — | sections they teach or class-teach |
 | Setup: years, classes, sections, subjects, class subjects, teacher assignments, holidays | ✔ | ✔ | — | — |
 | Setup: school profile and logo, modules and preferences, users | ✔ | — | — | — |
 
@@ -141,12 +145,44 @@ Switch it on or off under **Setup → Modules & preferences**.
 
    Each report has **Export CSV**.
 
+### Exams
+
+Switch it on or off under **Setup → Modules & preferences**.
+
+1. **Exams → Exam setup → Grading scales:** add **CBSE 9-point** or **TS state CCE** with
+   one click, then edit the bands if your school differs. A percentage gets the grade
+   with the highest "from %" it reaches.
+2. **Exam setup → Exams:** add FA1, SA1, … with a grading scale and an optional
+   weightage (e.g. FA 20, SA 80) for the final result.
+   - **Papers** sets max/pass marks per class and subject.
+   - **Apply to all class subjects** creates a paper for every subject mapped under
+     Setup → Class subjects.
+3. **Exams → Enter marks:** pick the exam, then a "class – section · subject".
+   - Type marks and press **Enter** to move down. **AB** (or **a**) means absent; empty
+     means not entered. Then **Save**; only changed rows are sent.
+   - Works on a phone (numeric keypad).
+   - Teachers only see the subjects assigned to them.
+4. **Publish** (Exam setup) locks marks and allows report cards. **Unpublish** to correct.
+5. **Exams → Results & report cards:**
+   - Students × subjects with total, %, grade, pass/fail and rank, plus **CSV** export.
+   - **All report cards** prints one PDF for the section (one page per student).
+     The PDF icon on a row prints one student.
+   - **Annual cards** combine every published exam with the weighted final.
+   - Rank and attendance on the card follow **Setup → Modules & preferences → Report card**.
+6. **Student profile → Marks:** published exams of the year and the final result.
+
+Result rules:
+- Absent counts as 0 and fails that subject.
+- Below pass marks fails the subject.
+- A subject that is not entered makes the result "Incomplete"; it is not counted as 0.
+- The final % is Σ(weightage × exam %) ÷ Σ weightage.
+
 ## Testing
 
 ### Automated
 
 ```sh
-cd backend && ./mvnw clean test       # 100 tests; needs Docker running (Testcontainers)
+cd backend && ./mvnw clean test       # 110 tests; needs Docker running (Testcontainers)
 cd frontend && npm run build && npm run lint
 ```
 
@@ -165,7 +201,10 @@ records.
    sections' students and no sensitive fields.
    As them, open **Attendance → Mark attendance**, mark today, and check that
    yesterday is view-only for them.
-6. As principal, deactivate that teacher. Their open session is signed out on the
+6. As principal, open **Exams → Results & report cards** for FA1 · Class 5 – A (demo marks
+   are already entered and FA1 is published) and press **All report cards**. SA1 has marks
+   in draft: publish it under Exam setup and the student **Marks** tab shows the weighted final.
+7. As principal, deactivate that teacher. Their open session is signed out on the
    next click.
 
 ### Look at the data directly

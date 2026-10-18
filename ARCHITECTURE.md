@@ -73,7 +73,9 @@ Package root `com.schoolerp`. Each module has `controller/ service/ repository/ 
 | `files` | `FileStorage` interface, `LocalFileStorage`, `ImageTypes` (detects image type from content) |
 | `attendance` | Marking a section for a day (bulk upsert), access and date rules, monthly register (+ CSV), student month, school-wide day summary; behind `@RequiresModule(ATTENDANCE)` |
 | `fee` | Fee heads, per-class installment plans (copy between years), student dues (created on `StudentEnrolledEvent`, or by "generate"), concessions, collection into gap-free receipts, cancellation, receipt PDF, collection/dues/class reports; behind `@RequiresModule(FEES)` |
-| `exam`, `certificate`, `dashboard` | Empty, filled in by Phases 6–8 |
+| `exam` | Grading scales and bands (CBSE/TS presets), exams per year with weightage, papers per class + subject ("apply to all"), marks entry (`ExamAccess` limits teachers), publish lock, `ResultCalculator` (pure, unit-tested), section result sheet, student year results, report card PDFs; behind `@RequiresModule(EXAMS)` |
+| `common.pdf` | `HtmlPdf`: shared openhtmltopdf rendering, DejaVu Sans fonts, escaping, ₹ formatting, embedded images (receipts and report cards) |
+| `certificate`, `dashboard` | Empty, filled in by Phases 7–8 |
 
 ## 4. Tenant isolation (the most important design)
 
@@ -189,6 +191,11 @@ checks the schema and never alters it. Tables in use so far:
 | `fee_receipt` | `FeeReceipt` | Never deleted; `cancelled` + who, when, why |
 | `fee_receipt_line` | `FeeReceiptLine` (`BaseEntity`, **no school_id**) | Only read by the ids of receipts already loaded through the tenant filter |
 | `receipt_counter` | (plain SQL) | One row per school + year, locked `FOR UPDATE` |
+| `grading_scale` | `GradingScale` | Name unique per school; can't be deleted while an exam uses it |
+| `grading_band` | `GradingBand` (`BaseEntity`, **no school_id**) | min/max %, grade, grade point, remark; only read by the ids of scales already loaded through the tenant filter |
+| `exam` | `Exam` | Per academic year; `display_order`, nullable `weightage`, `is_published` |
+| `exam_subject` | `ExamSubject` ("paper") | One per exam + class + subject; max and pass marks, optional date |
+| `mark` | `Mark` | One per paper + enrollment; `marks_obtained` null when absent, `is_absent`, `entered_by`, `updated_at`; no row = not entered |
 
 Foreign keys are mapped as plain `Long` ids, not JPA associations. Services batch-load
 related rows into maps. This keeps every query explicit and tenant-scoped, and avoids
@@ -281,14 +288,43 @@ timestamps `OffsetDateTime`. The JVM and JSON time zone is `Asia/Kolkata`.
     - collection by day and mode (cancelled receipts excluded)
     - dues per student, with overdue being past the due date
     - expected vs. collected per class
+- **Exams:**
+  - **Access** (`ExamAccess`):
+    - Principal/admin can do everything.
+    - A teacher enters marks only for (section, subject) pairs in `teacher_assignment`.
+    - A teacher sees results and report cards for sections they teach or class-teach.
+    - Anything else returns 404, the same as another school's record.
+  - **Marks** are saved per paper + section; only the rows sent are touched.
+    - Blank marks with no absent flag deletes the row (back to "not entered").
+    - Marks must be ≤ max.
+    - Everything is refused with 409 once the exam is published; papers are locked too.
+  - **`ResultCalculator`** is pure functions, unit-tested:
+    - subject % = marks ÷ max (2 decimals, half-up)
+    - grade = the band with the highest min % reached
+    - absent = 0 and fails the subject; below pass marks fails it
+    - any subject not entered makes the result incomplete (`passed = null`, no rank)
+    - final % = Σ(w × %) ÷ Σw over weighted published exams, graded on the last
+      weighted exam's scale; it passes only if every counted exam passed
+    - rank is competition style (1, 2, 2, 4)
+  - **Subject order** on sheets and cards follows Setup → Class subjects.
+  - **Report cards:** one XHTML document, one page per student (`page-break-after`),
+    rendered once.
+    - It is for one published exam, or the "annual" card (every published exam plus
+      the final).
+    - School name, address, logo and primary colour come from the school record.
+    - Rank and attendance % follow `settings.reportCard`; attendance only appears
+      when the attendance module is on.
+    - Printing writes an `ISSUE report_card` audit entry; publish/unpublish are audited.
 - **Events:** `StudentEnrolledEvent` is published on every new enrollment (admission,
-  promotion, enrolling later). Phase 5 will listen to it to create fee dues.
+  promotion, enrolling later). The fee module listens to it to create fee dues.
 - **Audit:** `AuditService.log(action, entity, id, details)`. Logged so far:
   - login, failed login
   - school profile, settings and logo changes
   - user create, update and role changes, password reset, activation
   - student create, update, status change, photo
   - section change, renumbering, promotion
+  - receipt create and cancel
+  - exam publish/unpublish, report card printing
 
 ## 9. API (all under `/api/v1`)
 
@@ -315,6 +351,11 @@ Public: `POST /auth/login`, `GET /public/schools/{code}/branding`, `GET /public/
 | Fee setup | `GET/POST /fees/heads` · `PUT/DELETE /fees/heads/{id}` · `GET /fees/plan?academicYearId&classId` · `POST /fees/plan` · `PUT/DELETE /fees/plan/{id}` · `POST /fees/plan/copy` · `POST /fees/dues/generate` | principal/admin/accountant |
 | Fees | `GET /fees/students/{id}` · `PUT /fees/dues/{id}/concession` · `POST /fees/receipts` · `GET /fees/receipts?from&to&q&cancelled&page` · `GET /fees/receipts/{id}` · `GET /fees/receipts/{id}/pdf` · `POST /fees/receipts/{id}/cancel` | principal/admin/accountant; **cancel: principal/accountant** |
 | Fee reports | `GET /fees/reports/collection?from&to` · `GET /fees/reports/dues?academicYearId&classId&sectionId&overdueOnly` · `GET /fees/reports/class-summary?academicYearId` | principal/admin/accountant |
+| Grading scales | `GET /exams/grading-scales` · `POST` · `POST /exams/grading-scales/presets/{CBSE_9_POINT\|TS_CCE}` · `PUT /{id}` · `DELETE /{id}` | read: principal/admin/teacher; write: principal/admin |
+| Exams | `GET /exams?academicYearId` · `GET /exams/{id}` · `POST` · `PUT /{id}` · `DELETE /{id}` · `POST /{id}/publish` · `POST /{id}/unpublish` | same |
+| Papers | `GET /exams/{id}/papers?classId` · `PUT /exams/{id}/papers` (upsert class + subject) · `POST /exams/{id}/papers/apply` · `DELETE /exams/papers/{paperId}` | same |
+| Marks | `GET /exams/{id}/entry-options` · `GET /exams/papers/{paperId}/marks?sectionId` · `PUT …/marks?sectionId` | principal/admin; teachers for their assigned subject + section |
+| Results | `GET /exams/result-sections?academicYearId` · `GET /exams/{id}/results?sectionId` · `GET /exams/students/{id}/results?academicYearId` · `GET /exams/report-cards.pdf?sectionId&examId&studentId` | principal/admin; teachers for sections they teach or class-teach |
 
 Conventions:
 - Requests and responses are Java `record` DTOs; entities are never exposed.
@@ -336,9 +377,9 @@ src/
                 guards (RequireAuth, RequireRole)
   layout/       AppShell (sidebar + header, mobile drawer), menu.tsx (role/module filtered),
                 BrandTheme (school colour → Ant Design ConfigProvider)
-  features/     auth/ dashboard/ settings/ students/   (pages + small feature components)
+  features/     auth/ dashboard/ settings/ students/ attendance/ fees/ exams/   (pages + small feature components)
   components/   PageHeader, SchoolLogo, useFormErrors (backend field errors → form)
-  utils/        format (DD-MM-YYYY, ₹ en-IN), download (save Blob)
+  utils/        format (DD-MM-YYYY, ₹ en-IN), download (save Blob), csv, openPdf (authed PDF in a new tab)
 ```
 
 - **Server state:** only TanStack Query, with shared query keys in
@@ -360,6 +401,7 @@ src/
     `/students/promotion`, `/students/import`
   - `/attendance` (`?section=&date=`), `/attendance/register`, `/attendance/today`
   - `/fees/collect` (`?student=`), `/fees/receipts`, `/fees/reports`, `/fees/setup`
+  - `/exams` (marks entry, `?exam=&paper=&section=`), `/exams/results` (`?exam=&section=`), `/exams/setup`
   - `/settings/{school,preferences,years,classes,subjects,class-subjects,assignments,holidays,users}`
 
   Every route has a role guard that matches its API.
@@ -387,7 +429,7 @@ Other settings:
 
 ## 12. Testing strategy
 
-- **100 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
+- **110 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
   Testcontainers. One Spring context is shared, plus one extra for the module-guard
   probe.
 - **`IntegrationTest`** base class: MockMvc, request helpers (`getAs`, `postAs`,
@@ -413,9 +455,18 @@ Other settings:
     payments, copy plan, reports, roles (teacher refused, admin can't cancel), module
     off, 8 concurrent payments (gap-free numbers, no lost update), School A vs B on
     every fee endpoint, amount in words, ₹ glyph in the bundled font
-  - unit tests for Verhoeff, AES-GCM and CSV
-- **Frontend:** `tsc` and `oxlint` must be clean. Flows were checked by hand in the
-  browser at the end of each phase.
+  - exams: apply-to-all papers, teacher limited to their subject (entry options, sheet,
+    save, results, result sections), marks > max refused, incomplete vs. complete
+    results, absent and below-pass fail, rank, clearing a mark, publish locks marks and
+    papers, report cards only when published (section, one student, annual),
+    unpublish reopens, weighted final over published exams only, grading-scale rules
+    (preset twice, must start at 0 %, in use), accountant refused, module off, School A
+    vs B on every exam endpoint
+  - unit tests for Verhoeff, AES-GCM, CSV and `ResultCalculator` (grade boundaries such
+    as 90.99 → A2 and 91 → A1, absent, incomplete, weighting, ranking)
+- **Frontend:** `tsc` and `oxlint` must be clean. Flows up to Phase 5 were checked by hand
+  in the browser. From Phase 6, acceptance is run through the API and the PDFs are
+  rendered and inspected.
 
 ## 13. Decisions and deviations
 
@@ -442,6 +493,12 @@ Other settings:
 | One receipt per student per academic year | `fee_receipt` has one `enrollment_id` and `academic_year_id`; arrears from last year go on their own receipt |
 | Receipt lines have no `school_id` and are not a `TenantEntity` | The V1 table has no such column; lines are only reached through receipts already filtered by school |
 | Fee report CSVs are built in the browser from the report data | No extra endpoints; the data on screen is what is exported |
+| Report cards use one built-in layout themed per school, not a per-school editable HTML template (PLAN asked for a template) | Gets the demo printing now; the editable-template mechanism arrives with certificates in Phase 7 and report cards can move onto it |
+| Grading presets are added with one click instead of being seeded into every school | Schools use one or the other; nothing to delete for the unused one |
+| `grading_band` has no `school_id` and is not a `TenantEntity` | The V1 table has no such column; bands are only read through scales already filtered by school |
+| Marks not entered are "incomplete", not 0 | A half-entered sheet must not show students as failing |
+| Marks save sends only changed rows; others are untouched | Two teachers (or tabs) on different rows don't overwrite each other |
+| Annual final graded on the last weighted exam's scale | An exam per scale is rare; one rule keeps the final simple |
 | Sidebar menu is not mounted while the mobile drawer is closed | Inside a collapsed `Sider`, antd turns the inline menu into popups that opened over the page |
 
 ## 14. Known limitations / technical debt
@@ -486,16 +543,23 @@ Other settings:
 - **No fee refunds or advance payments.** Money only goes against existing dues; a
   mistake is corrected by cancelling the receipt.
 
+- **Exams:**
+  - **No co-scholastic grades or teacher remarks on report cards yet.** `mark.remarks`
+    is stored but not shown.
+  - **Marks changes are not audited one by one.** `entered_by` and `updated_at`
+    are kept; publish is audited.
+  - **Report card printing is synchronous.** A section of ~40 renders in about a
+    second; whole-school printing would need a background job.
+  - **Results include students who were promoted or detained**, but not those who
+    left, because the roster is the enrollment in that year.
+
 ## 15. What's next
 
-Phase 6 is **exams, marks and report cards**:
-- grading scales and bands, with "TS state CCE" and "CBSE 9-point" presets
-- exams per year with weightage, and exam subjects per class (max and pass marks)
-- a keyboard- and phone-friendly marks grid; teachers limited to their assigned
-  subject and section (`TeacherScopeService`)
-- publish/unpublish, which locks marks
-- result computation (grade bands, weighted final result)
-- report card PDFs per student and per section, reusing the PDF setup built for
-  receipts
+Phase 7 is **certificates**:
+- per-school editable HTML templates (BONAFIDE, TC) with `{{placeholders}}`
+- issuing with a serial number per school and type, and a data snapshot
+- a TC sets the student to `TC_ISSUED`
+- the PDF goes through `HtmlPdf`
 
-Phases 7–11 follow the order in `PLAN.md`.
+Report cards can then move onto the same template mechanism. Phases 8–11 follow
+the order in `PLAN.md`.

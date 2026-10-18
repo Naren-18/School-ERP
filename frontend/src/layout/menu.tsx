@@ -3,7 +3,7 @@ import {
   BankOutlined, BookOutlined, CalendarOutlined, CarryOutOutlined, CheckSquareOutlined, ClusterOutlined, ControlOutlined, DashboardOutlined,
   ReadOutlined, RiseOutlined, ScheduleOutlined, SettingOutlined, SolutionOutlined, TeamOutlined, UnorderedListOutlined,
   UploadOutlined, UserAddOutlined, TableOutlined, PieChartOutlined, WalletOutlined, DollarOutlined, FileTextOutlined,
-  BarChartOutlined, ToolOutlined,
+  BarChartOutlined, ToolOutlined, ProfileOutlined, EditOutlined, TrophyOutlined,
 } from '@ant-design/icons'
 import type { Role } from '../api/auth'
 import type { Modules } from '../api/school'
@@ -62,6 +62,18 @@ export const MENU: readonly MenuEntry[] = [
       { path: '/fees/receipts', label: 'Receipts', icon: <FileTextOutlined />, roles: FEE_STAFF },
       { path: '/fees/reports', label: 'Reports', icon: <BarChartOutlined />, roles: FEE_STAFF },
       { path: '/fees/setup', label: 'Fee setup', icon: <ToolOutlined />, roles: FEE_STAFF },
+    ],
+  },
+  {
+    path: '/exams',
+    label: 'Exams',
+    icon: <ProfileOutlined />,
+    roles: TEACHING,
+    module: 'exams',
+    children: [
+      { path: '/exams', label: 'Enter marks', icon: <EditOutlined />, roles: TEACHING },
+      { path: '/exams/results', label: 'Results & report cards', icon: <TrophyOutlined />, roles: TEACHING },
+      { path: '/exams/setup', label: 'Exam setup', icon: <ToolOutlined />, roles: PRINCIPAL_ADMIN },
     ],
   },
   {
