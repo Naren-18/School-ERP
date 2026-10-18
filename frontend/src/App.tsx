@@ -13,6 +13,11 @@ import { SchoolProfilePage } from './features/settings/SchoolProfilePage'
 import { SubjectsPage } from './features/settings/SubjectsPage'
 import { TeacherAssignmentsPage } from './features/settings/TeacherAssignmentsPage'
 import { UsersPage } from './features/settings/UsersPage'
+import { PromotionPage } from './features/students/PromotionPage'
+import { StudentFormPage } from './features/students/StudentFormPage'
+import { StudentImportPage } from './features/students/StudentImportPage'
+import { StudentListPage } from './features/students/StudentListPage'
+import { StudentProfilePage } from './features/students/StudentProfilePage'
 import { AppShell } from './layout/AppShell'
 import { BrandTheme } from './layout/BrandTheme'
 import { PRINCIPAL, PRINCIPAL_ADMIN } from './layout/menu'
@@ -32,6 +37,14 @@ export default function App() {
           }
         >
           <Route index element={<DashboardPage />} />
+          <Route path="students">
+            <Route index element={<StudentListPage />} />
+            <Route path="new" element={only(PRINCIPAL_ADMIN, <StudentFormPage />)} />
+            <Route path="import" element={only(PRINCIPAL_ADMIN, <StudentImportPage />)} />
+            <Route path="promotion" element={only(PRINCIPAL_ADMIN, <PromotionPage />)} />
+            <Route path=":id" element={<StudentProfilePage />} />
+            <Route path=":id/edit" element={only(PRINCIPAL_ADMIN, <StudentFormPage key="edit" />)} />
+          </Route>
           <Route path="settings">
             <Route index element={<Navigate to="years" replace />} />
             <Route path="school" element={only(PRINCIPAL, <SchoolProfilePage />)} />

@@ -15,6 +15,7 @@ import com.schoolerp.audit.service.AuditService;
 import com.schoolerp.common.error.BadRequestException;
 import com.schoolerp.common.error.NotFoundException;
 import com.schoolerp.files.service.FileStorage;
+import com.schoolerp.files.service.ImageTypes;
 import com.schoolerp.school.dto.SchoolProfileResponse;
 import com.schoolerp.school.dto.UpdateSchoolProfileRequest;
 import com.schoolerp.school.entity.School;
@@ -80,10 +81,10 @@ public class SchoolService {
 	public SchoolProfileResponse uploadLogo(MultipartFile file) {
 		School school = requireCurrent();
 		byte[] content = readLogo(file);
-		String extension = imageExtension(content)
+		String extension = ImageTypes.detect(content)
 			.orElseThrow(() -> new BadRequestException("Logo must be a PNG, JPEG or WebP image"));
 		String fileName = "logo-" + clock.millis() + "." + extension;
-		storage.put(logoKey(school.getId(), fileName), content, contentType(extension));
+		storage.put(logoKey(school.getId(), fileName), content, ImageTypes.contentType(extension));
 
 		String previous = school.getLogoUrl();
 		school.setLogoUrl(LOGO_URL_PREFIX + school.getCode() + "/logo/" + fileName);
@@ -104,7 +105,7 @@ public class SchoolService {
 			.orElseThrow(() -> new NotFoundException("Logo"));
 		byte[] content = storage.get(logoKey(school.getId(), fileName))
 			.orElseThrow(() -> new NotFoundException("Logo"));
-		return new Logo(content, contentType(fileName.substring(fileName.lastIndexOf('.') + 1)));
+		return new Logo(content, ImageTypes.contentType(fileName.substring(fileName.lastIndexOf('.') + 1)));
 	}
 
 	public School requireCurrent() {
@@ -126,32 +127,6 @@ public class SchoolService {
 		}
 	}
 
-	/** Detects the image type from its first bytes rather than trusting the file name. */
-	static Optional<String> imageExtension(byte[] b) {
-		if (startsWith(b, 0, 0x89, 'P', 'N', 'G')) {
-			return Optional.of("png");
-		}
-		if (startsWith(b, 0, 0xFF, 0xD8, 0xFF)) {
-			return Optional.of("jpg");
-		}
-		if (startsWith(b, 0, 'R', 'I', 'F', 'F') && startsWith(b, 8, 'W', 'E', 'B', 'P')) {
-			return Optional.of("webp");
-		}
-		return Optional.empty();
-	}
-
-	private static boolean startsWith(byte[] b, int offset, int... expected) {
-		if (b.length < offset + expected.length) {
-			return false;
-		}
-		for (int i = 0; i < expected.length; i++) {
-			if ((b[offset + i] & 0xFF) != expected[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-
 	private static Optional<String> storedLogoFile(String logoUrl) {
 		if (logoUrl == null || !logoUrl.startsWith(LOGO_URL_PREFIX)) {
 			return Optional.empty();
@@ -162,14 +137,6 @@ public class SchoolService {
 
 	private static String logoKey(Long schoolId, String fileName) {
 		return "schools/" + schoolId + "/" + fileName;
-	}
-
-	private static String contentType(String extension) {
-		return switch (extension) {
-			case "png" -> "image/png";
-			case "jpg" -> "image/jpeg";
-			default -> "image/webp";
-		};
 	}
 
 	private static String blankToNull(String value) {

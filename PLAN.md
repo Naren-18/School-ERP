@@ -92,27 +92,27 @@ subjects and staff entirely from the UI.
 ## Phase 3 — Students, guardians & enrollment
 
 Backend:
-- [ ] Student CRUD with guardians; admission number unique per school (auto-suggest next number)
-- [ ] Aadhaar encryption converter; sensitive fields hidden for non-ADMIN/PRINCIPAL
-- [ ] Photo upload
-- [ ] Enrollment on admission (year + section + roll no); roll-no auto-assign option
-- [ ] Section change within a year
-- [ ] Mark student LEFT (with date & reason) → enrollment LEFT
-- [ ] Year-end promotion: for a source section, promote selected students to a target section in the next year; others DETAINED
-- [ ] Search & filter: name, admission no, guardian phone, class/section, status; paginated
-- [ ] CSV import of students (template download + validation report) — schools will ask for bulk import
-- [ ] Generate fee dues for a student on enrollment (hook for Phase 5; no-op until then)
+- [x] Student CRUD with guardians; admission number unique per school (auto-suggest next number)
+- [x] Aadhaar encryption converter; sensitive fields hidden for non-ADMIN/PRINCIPAL
+- [x] Photo upload
+- [x] Enrollment on admission (year + section + roll no); roll-no auto-assign option
+- [x] Section change within a year
+- [x] Mark student LEFT (with date & reason) → enrollment LEFT
+- [x] Year-end promotion: for a source section, promote selected students to a target section in the next year; others DETAINED
+- [x] Search & filter: name, admission no, guardian phone, class/section, status; paginated
+- [x] CSV import of students (template download + validation report) — schools will ask for bulk import
+- [x] Generate fee dues for a student on enrollment (hook for Phase 5; no-op until then) — `StudentEnrolledEvent` published on every new enrollment
 
 Frontend:
-- [ ] Student list with filters, search, pagination
-- [ ] Admission form (multi-section: student, guardians, previous school, documents) with photo
-- [ ] Student profile page with tabs: Details, Attendance, Fees, Marks, Certificates (tabs filled in later phases)
-- [ ] Promotion wizard
-- [ ] CSV import screen
+- [x] Student list with filters, search, pagination
+- [x] Admission form (multi-section: student, guardians, previous school, documents) with photo
+- [x] Student profile page with tabs: Details, Attendance, Fees, Marks, Certificates (tabs filled in later phases)
+- [x] Promotion wizard
+- [x] CSV import screen
 
 Tests:
-- [ ] Isolation; TEACHER sees only students of their sections; sensitive-field masking per role
-- [ ] Promotion creates correct next-year enrollments
+- [x] Isolation; TEACHER sees only students of their sections; sensitive-field masking per role
+- [x] Promotion creates correct next-year enrollments
 
 **Acceptance:** Admit a student, find them by guardian phone, change section, promote to next year.
 

@@ -28,19 +28,23 @@ export function AppShell() {
   }
 
   const visible = visibleMenu(MENU, hasAnyRole, me.school.modules)
+  // Groups get their own key: a group and its first page can share a path (/students).
+  const groupKey = (entry: MenuEntry) => `group:${entry.path}`
   const toItem = (entry: MenuEntry): ItemType => ({
-    key: entry.path,
+    key: entry.children ? groupKey(entry) : entry.path,
     icon: entry.icon,
     label: entry.label,
     children: entry.children?.map(toItem),
   })
   const items = visible.map(toItem)
 
+  // Highlight the most specific page: /students/new is "Admit student", not "All students".
   const leaves = visible.flatMap((e) => e.children ?? [e])
-  const selected = leaves
-    .filter((e) => (e.path === '/' ? location.pathname === '/' : location.pathname.startsWith(e.path)))
-    .map((e) => e.path)
-  const openGroups = visible.filter((e) => e.children && location.pathname.startsWith(e.path)).map((e) => e.path)
+  const matches = (path: string) =>
+    path === '/' ? location.pathname === '/' : location.pathname === path || location.pathname.startsWith(`${path}/`)
+  const best = leaves.filter((e) => matches(e.path)).sort((a, b) => b.path.length - a.path.length)[0]
+  const selected = best ? [best.path] : []
+  const openGroups = visible.filter((e) => e.children && matches(e.path)).map(groupKey)
 
   const logout = () => {
     signOut()

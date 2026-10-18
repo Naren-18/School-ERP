@@ -22,6 +22,13 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
 	boolean existsBySchoolIdAndAcademicYearIdAndClassIdAndNameIgnoreCaseAndIdNot(Long schoolId,
 			Long academicYearId, Long classId, String name, Long id);
 
+	List<Section> findBySchoolIdAndClassTeacherId(Long schoolId, Long classTeacherId);
+
+	List<Section> findBySchoolIdAndAcademicYearIdAndClassId(Long schoolId, Long academicYearId, Long classId);
+
+	Optional<Section> findBySchoolIdAndAcademicYearIdAndClassIdAndNameIgnoreCase(Long schoolId, Long academicYearId,
+			Long classId, String name);
+
 	boolean existsBySchoolIdAndAcademicYearId(Long schoolId, Long academicYearId);
 
 	boolean existsBySchoolIdAndClassId(Long schoolId, Long classId);

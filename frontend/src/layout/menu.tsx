@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import {
   BankOutlined, BookOutlined, CalendarOutlined, ClusterOutlined, ControlOutlined, DashboardOutlined,
-  ScheduleOutlined, SettingOutlined, SolutionOutlined, TeamOutlined, UnorderedListOutlined,
+  ReadOutlined, RiseOutlined, ScheduleOutlined, SettingOutlined, SolutionOutlined, TeamOutlined, UnorderedListOutlined,
+  UploadOutlined, UserAddOutlined,
 } from '@ant-design/icons'
 import type { Role } from '../api/auth'
 import type { Modules } from '../api/school'
@@ -23,6 +24,18 @@ export const PRINCIPAL_ADMIN: readonly Role[] = ['PRINCIPAL', 'ADMIN']
 /** Sidebar entries; each is shown only to the listed roles. Later phases add modules here. */
 export const MENU: readonly MenuEntry[] = [
   { path: '/', label: 'Dashboard', icon: <DashboardOutlined />, roles: ALL_ROLES },
+  {
+    path: '/students',
+    label: 'Students',
+    icon: <ReadOutlined />,
+    roles: ALL_ROLES,
+    children: [
+      { path: '/students', label: 'All students', icon: <TeamOutlined />, roles: ALL_ROLES },
+      { path: '/students/new', label: 'Admit student', icon: <UserAddOutlined />, roles: PRINCIPAL_ADMIN },
+      { path: '/students/promotion', label: 'Promotion', icon: <RiseOutlined />, roles: PRINCIPAL_ADMIN },
+      { path: '/students/import', label: 'Import CSV', icon: <UploadOutlined />, roles: PRINCIPAL_ADMIN },
+    ],
+  },
   {
     path: '/settings',
     label: 'Setup',

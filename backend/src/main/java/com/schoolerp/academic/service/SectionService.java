@@ -1,9 +1,12 @@
 package com.schoolerp.academic.service;
 
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -90,6 +93,7 @@ public class SectionService {
 		return get(id);
 	}
 
+	/** Sections with students enrolled are protected by the database (409 via the FK). */
 	@Transactional
 	public void delete(Long id) {
 		Section section = require(id);
@@ -98,6 +102,23 @@ public class SectionService {
 		}
 		sections.delete(section);
 		sections.flush();
+	}
+
+	/** Section details (class name, year, teacher) by id, for other modules' responses. */
+	@Transactional(readOnly = true)
+	public Map<Long, SectionDto.Response> describe(Collection<Long> sectionIds) {
+		if (sectionIds.isEmpty()) {
+			return new HashMap<>();
+		}
+		return toResponses(sections.findBySchoolIdAndIdIn(TenantContext.require(), sectionIds)).stream()
+			.collect(Collectors.toMap(SectionDto.Response::id, Function.identity()));
+	}
+
+	/** Finds a section by class and section name in a year (CSV import). */
+	@Transactional(readOnly = true)
+	public Optional<Section> findByNames(Long yearId, Long classId, String sectionName) {
+		return sections.findBySchoolIdAndAcademicYearIdAndClassIdAndNameIgnoreCase(TenantContext.require(), yearId,
+				classId, sectionName.trim());
 	}
 
 	public Section require(Long id) {
