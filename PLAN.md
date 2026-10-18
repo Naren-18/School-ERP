@@ -60,7 +60,7 @@ each sees only its own name, logo and color.
 ## Phase 2 — School settings & academic setup
 
 Backend:
-- [ ] School profile + settings (PRINCIPAL only). `settings` JSON shape, validated in Java:
+- [x] School profile + settings (PRINCIPAL only). `settings` JSON shape, validated in Java:
   ```json
   {
     "receiptPrefix": "SVS",
@@ -70,19 +70,19 @@ Backend:
     "reportCard": { "showRank": false, "showAttendance": true }
   }
   ```
-- [ ] Logo upload via `FileStorage` (local in dev)
-- [ ] CRUD: academic years (exactly one current), classes (ordered), sections (per year, class teacher), subjects
-- [ ] Class-subject mapping per year; teacher assignments (section + subject → teacher)
-- [ ] Holidays CRUD
-- [ ] User management (PRINCIPAL): create staff, assign roles, reset password, deactivate
+- [x] Logo upload via `FileStorage` (local in dev)
+- [x] CRUD: academic years (exactly one current), classes (ordered), sections (per year, class teacher), subjects
+- [x] Class-subject mapping per year; teacher assignments (section + subject → teacher)
+- [x] Holidays CRUD
+- [x] User management (PRINCIPAL): create staff, assign roles, reset password, deactivate
 
 Frontend:
-- [ ] Settings pages: school profile & branding, modules toggles, academic years, classes & sections, subjects, class-subject mapping, teacher assignments, holidays, users
-- [ ] Disabled modules disappear from the sidebar and their APIs return 404
+- [x] Settings pages: school profile & branding, modules toggles, academic years, classes & sections, subjects, class-subject mapping, teacher assignments, holidays, users
+- [x] Disabled modules disappear from the sidebar and their APIs return 404 (`@RequiresModule` + `module` on menu entries; applied as module pages arrive in phases 4-7)
 
 Tests:
-- [ ] Isolation tests for every new endpoint
-- [ ] Only one current academic year; ADMIN cannot change settings or users
+- [x] Isolation tests for every new endpoint
+- [x] Only one current academic year; ADMIN cannot change settings or users
 
 **Acceptance:** A principal can set up a new school's year, classes, sections,
 subjects and staff entirely from the UI.

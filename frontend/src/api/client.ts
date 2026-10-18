@@ -43,6 +43,14 @@ export function errorMessage(error: unknown): string {
   return 'Something went wrong. Please try again.'
 }
 
+/** Field-level validation messages from a 400 response, keyed by field name. */
+export function fieldErrors(error: unknown): Record<string, string> {
+  if (axios.isAxiosError<ProblemDetail>(error) && error.response?.status === 400) {
+    return error.response.data?.errors ?? {}
+  }
+  return {}
+}
+
 export function isNotFound(error: unknown): boolean {
   return axios.isAxiosError(error) && error.response?.status === 404
 }

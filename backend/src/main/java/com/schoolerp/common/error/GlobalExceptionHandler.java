@@ -5,6 +5,7 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -31,6 +32,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	@ExceptionHandler(AccessDeniedException.class)
 	ProblemDetail handleAccessDenied(AccessDeniedException ex) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "You do not have permission to do this");
+	}
+
+	/** Safety net for unique/foreign-key violations not caught by explicit service checks. */
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	ProblemDetail handleDataIntegrity(DataIntegrityViolationException ex) {
+		log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+				"This conflicts with an existing record, or the record is still in use");
 	}
 
 	@ExceptionHandler(Exception.class)

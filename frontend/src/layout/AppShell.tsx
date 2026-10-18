@@ -4,7 +4,8 @@ import { Avatar, Button, Dropdown, Flex, Grid, Layout, Menu, Typography, theme }
 import { LogoutOutlined, MenuOutlined, UserOutlined } from '@ant-design/icons'
 import { useAuth } from '../auth/useAuth'
 import { SchoolLogo } from '../components/SchoolLogo'
-import { MENU } from './menu'
+import type { ItemType } from 'antd/es/menu/interface'
+import { MENU, visibleMenu, type MenuEntry } from './menu'
 
 const ROLE_LABELS: Record<string, string> = {
   PRINCIPAL: 'Principal',
@@ -26,14 +27,20 @@ export function AppShell() {
     return null
   }
 
-  const items = MENU.filter((entry) => hasAnyRole(entry.roles)).map((entry) => ({
+  const visible = visibleMenu(MENU, hasAnyRole, me.school.modules)
+  const toItem = (entry: MenuEntry): ItemType => ({
     key: entry.path,
     icon: entry.icon,
     label: entry.label,
-  }))
+    children: entry.children?.map(toItem),
+  })
+  const items = visible.map(toItem)
 
-  const selected = MENU.filter((e) => e.path === '/' ? location.pathname === '/' : location.pathname.startsWith(e.path))
+  const leaves = visible.flatMap((e) => e.children ?? [e])
+  const selected = leaves
+    .filter((e) => (e.path === '/' ? location.pathname === '/' : location.pathname.startsWith(e.path)))
     .map((e) => e.path)
+  const openGroups = visible.filter((e) => e.children && location.pathname.startsWith(e.path)).map((e) => e.path)
 
   const logout = () => {
     signOut()
@@ -50,7 +57,10 @@ export function AppShell() {
         trigger={null}
         style={{
           borderRight: `1px solid ${token.colorBorderSecondary}`,
-          ...(isMobile ? { position: 'fixed', height: '100vh', zIndex: 20, left: 0, top: 0 } : {}),
+          height: '100vh',
+          overflowY: 'auto',
+          top: 0,
+          ...(isMobile ? { position: 'fixed', zIndex: 20, left: 0 } : { position: 'sticky' }),
         }}
       >
         <Flex align="center" gap={10} style={{ height: 64, padding: '0 16px' }}>
@@ -63,6 +73,7 @@ export function AppShell() {
           mode="inline"
           items={items}
           selectedKeys={selected}
+          defaultOpenKeys={openGroups}
           style={{ borderInlineEnd: 'none' }}
           onClick={({ key }) => {
             navigate(key)

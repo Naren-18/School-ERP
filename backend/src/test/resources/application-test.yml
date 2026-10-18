@@ -12,3 +12,5 @@ app:
     secret: test-only-jwt-secret-0123456789abcdef-0123456789
   encryption:
     key: dGVzdC1vbmx5LWtleS0zMi1ieXRlcy1sb25nLSEhISE=
+  files:
+    local-dir: target/test-files

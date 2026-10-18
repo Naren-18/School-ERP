@@ -12,6 +12,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.schoolerp.auth.service.AuthUser;
 import com.schoolerp.auth.service.JwtService;
+import com.schoolerp.auth.service.SessionService;
 import com.schoolerp.tenant.TenantContext;
 
 import jakarta.servlet.FilterChain;
@@ -29,8 +30,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
 	private final JwtService jwtService;
 
-	public JwtAuthFilter(JwtService jwtService) {
+	private final SessionService sessionService;
+
+	public JwtAuthFilter(JwtService jwtService, SessionService sessionService) {
 		this.jwtService = jwtService;
+		this.sessionService = sessionService;
 	}
 
 	@Override
@@ -39,7 +43,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 		try {
 			String header = request.getHeader(HttpHeaders.AUTHORIZATION);
 			if (header != null && header.startsWith(BEARER)) {
-				jwtService.verify(header.substring(BEARER.length())).ifPresent(this::authenticate);
+				jwtService.verify(header.substring(BEARER.length()))
+					.flatMap(sessionService::refresh)
+					.ifPresent(this::authenticate);
 			}
 			chain.doFilter(request, response);
 		}

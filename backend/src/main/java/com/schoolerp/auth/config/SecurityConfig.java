@@ -23,6 +23,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.schoolerp.auth.service.JwtService;
+import com.schoolerp.auth.service.SessionService;
 
 import jakarta.servlet.http.HttpServletResponse;
 import tools.jackson.databind.ObjectMapper;
@@ -32,7 +33,8 @@ import tools.jackson.databind.ObjectMapper;
 public class SecurityConfig {
 
 	@Bean
-	SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService, ObjectMapper objectMapper)
+	SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService, SessionService sessionService,
+			ObjectMapper objectMapper)
 			throws Exception {
 		http
 			.csrf(AbstractHttpConfigurer::disable)
@@ -54,7 +56,7 @@ public class SecurityConfig {
 						HttpStatus.UNAUTHORIZED, "Please sign in to continue"))
 				.accessDeniedHandler((request, response, e) -> writeProblem(response, objectMapper,
 						HttpStatus.FORBIDDEN, "You do not have permission to do this")))
-			.addFilterBefore(new JwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
+			.addFilterBefore(new JwtAuthFilter(jwtService, sessionService), UsernamePasswordAuthenticationFilter.class);
 		return http.build();
 	}
 
