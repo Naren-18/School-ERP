@@ -7,7 +7,7 @@ import {
 } from 'antd'
 import { EditOutlined, LogoutOutlined, PhoneOutlined, SwapOutlined, UserAddOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
-import { isNotFound } from '../../api/client'
+import { errorMessage, isNotFound } from '../../api/client'
 import { studentsApi, type EnrollmentView, type StudentDetail } from '../../api/students'
 import { useAuth } from '../../auth/useAuth'
 import { useFormErrors } from '../../components/useFormErrors'
@@ -31,12 +31,33 @@ export function StudentProfilePage() {
   const { hasAnyRole } = useAuth()
   const canManage = hasAnyRole(PRINCIPAL_ADMIN)
   const [dialog, setDialog] = useState<Dialog>(null)
-  const { data: s, isLoading, error } = useQuery({ queryKey: ['student', id], queryFn: () => studentsApi.get(id) })
+  const { data: s, isLoading, error, refetch } = useQuery({
+    queryKey: ['student', id],
+    queryFn: () => studentsApi.get(id),
+    enabled: Number.isFinite(id),
+    retry: (count, e) => !isNotFound(e) && count < 1,
+  })
 
-  if (isLoading) return <Skeleton active avatar />
-  if (isNotFound(error) || !s) {
-    return <Result status="404" title="Student not found" extra={<Button onClick={() => navigate('/students')}>All students</Button>} />
+  const back = <Button onClick={() => navigate('/students')}>All students</Button>
+  if (!Number.isFinite(id) || isNotFound(error)) {
+    return <Result status="404" title="Student not found" subTitle={canManage ? undefined : 'Teachers see only students of sections they teach.'} extra={back} />
   }
+  if (error) {
+    return (
+      <Result
+        status="error"
+        title="Could not load this student"
+        subTitle={errorMessage(error)}
+        extra={[
+          <Button key="retry" type="primary" onClick={() => refetch()}>
+            Try again
+          </Button>,
+          back,
+        ]}
+      />
+    )
+  }
+  if (isLoading || !s) return <Skeleton active avatar />
 
   const current = s.currentEnrollment
   const status = STUDENT_STATUS[s.status]

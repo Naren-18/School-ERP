@@ -36,6 +36,10 @@ const toForm = (s: StudentDetail): FormValues => ({
 
 const blank = (v?: string | null) => (v && v.trim() ? v.trim() : null)
 
+/** An untouched contact row (e.g. the default "Mother" left empty) is ignored on save. */
+const isBlankContact = (g: GuardianInput) =>
+  !blank(g.fullName) && !blank(g.phone) && !blank(g.occupation) && !blank(g.email)
+
 /** Admission (new) and edit form. Backend field errors arrive as "student.firstName" etc. */
 export function StudentFormPage() {
   const { id } = useParams()
@@ -89,8 +93,9 @@ export function StudentFormPage() {
         address: blank(v.address),
         previousSchool: blank(v.previousSchool),
         previousTcNo: blank(v.previousTcNo),
-        guardians: v.guardians.map((g: GuardianInput) => ({
+        guardians: v.guardians.filter((g) => !isBlankContact(g)).map((g: GuardianInput) => ({
           ...g,
+          fullName: g.fullName.trim(),
           occupation: blank(g.occupation),
           phone: blank(g.phone),
           email: blank(g.email),
@@ -138,6 +143,13 @@ export function StudentFormPage() {
           ],
         }}
         onFinish={(v) => save.mutate(v)}
+        onFinishFailed={({ errorFields }) =>
+          message.error(
+            errorFields.length === 1
+              ? `Please fix: ${errorFields[0].errors[0]}`
+              : `Please fix the ${errorFields.length} highlighted fields`,
+          )
+        }
       >
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={16}>
@@ -245,7 +257,24 @@ export function StudentFormPage() {
                             </Form.Item>
                           </Col>
                           <Col xs={24} sm={16}>
-                            <Form.Item name={[field.name, 'fullName']} label="Name" rules={[{ required: true, whitespace: true }, { max: 120 }]}>
+                            <Form.Item
+                              name={[field.name, 'fullName']}
+                              label="Name"
+                              dependencies={[['guardians', field.name, 'phone'], ['guardians', field.name, 'occupation'], ['guardians', field.name, 'email']]}
+                              rules={[
+                                { max: 120 },
+                                // A completely empty contact is simply skipped; once anything is
+                                // filled in, the name is required.
+                                ({ getFieldValue }) => ({
+                                  validator: (_, name?: string) => {
+                                    const g = getFieldValue(['guardians', field.name]) as GuardianInput | undefined
+                                    return name?.trim() || !g || isBlankContact(g)
+                                      ? Promise.resolve()
+                                      : Promise.reject(new Error('Enter the name, or clear this contact'))
+                                  },
+                                }),
+                              ]}
+                            >
                               <Input />
                             </Form.Item>
                           </Col>
