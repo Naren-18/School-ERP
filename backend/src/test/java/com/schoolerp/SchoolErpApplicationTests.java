@@ -7,22 +7,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.web.servlet.MockMvc;
 
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest
-@AutoConfigureMockMvc
-class SchoolErpApplicationTests {
+class SchoolErpApplicationTests extends IntegrationTest {
 
 	@Autowired
 	JdbcTemplate jdbc;
-
-	@Autowired
-	MockMvc mvc;
 
 	@Test
 	void flywayCreatesCoreSchema() {
@@ -41,8 +31,21 @@ class SchoolErpApplicationTests {
 	}
 
 	@Test
-	void everythingElseIsLocked() throws Exception {
-		mvc.perform(get("/api/v1/students")).andExpect(status().isForbidden());
+	void apiRequiresAuthentication() throws Exception {
+		mvc.perform(get("/api/v1/auth/me"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.detail").value("Please sign in to continue"));
+	}
+
+	@Test
+	void invalidTokenIsRejected() throws Exception {
+		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer not-a-jwt"))
+			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void nonApiPathsAreDenied() throws Exception {
+		mvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
 	}
 
 }

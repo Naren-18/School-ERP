@@ -1,0 +1,14 @@
+# Integration tests: Testcontainers supplies the datasource (@ServiceConnection).
+spring:
+  datasource:
+    url: jdbc:postgresql://unused/unused
+    username: unused
+    password: unused
+
+app:
+  cors:
+    allowed-origin: http://localhost:5173
+  jwt:
+    secret: test-only-jwt-secret-0123456789abcdef-0123456789
+  encryption:
+    key: dGVzdC1vbmx5LWtleS0zMi1ieXRlcy1sb25nLSEhISE=

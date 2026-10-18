@@ -65,6 +65,8 @@ app:
     secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-0123456789abcdef}
   encryption:
     key: ${APP_ENCRYPTION_KEY:ZGV2LW9ubHkta2V5LWNoYW5nZS1tZS0zMmJ5dGVzISE=}
+  dev-seed:
+    password: ${DEV_SEED_PASSWORD:Demo@12345}
 
 ---
 # Production: every value must come from the environment. No defaults.

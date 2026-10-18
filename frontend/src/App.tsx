@@ -1,21 +1,26 @@
-import { Card, Flex, Typography } from 'antd'
-import { Route, Routes } from 'react-router-dom'
-
-function Placeholder() {
-  return (
-    <Flex align="center" justify="center" style={{ minHeight: '100vh', padding: 16, background: '#f5f5f5' }}>
-      <Card style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
-        <Typography.Title level={3}>School ERP</Typography.Title>
-        <Typography.Text type="secondary">Frontend is running. Login arrives in Phase 1.</Typography.Text>
-      </Card>
-    </Flex>
-  )
-}
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { RequireAuth } from './auth/guards'
+import { LoginPage } from './features/auth/LoginPage'
+import { DashboardPage } from './features/dashboard/DashboardPage'
+import { AppShell } from './layout/AppShell'
+import { BrandTheme } from './layout/BrandTheme'
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="*" element={<Placeholder />} />
-    </Routes>
+    <BrandTheme>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          element={
+            <RequireAuth>
+              <AppShell />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<DashboardPage />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrandTheme>
   )
 }

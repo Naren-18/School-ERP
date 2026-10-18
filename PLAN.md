@@ -29,28 +29,28 @@ Frontend dev server shows a placeholder page. Backend `GET /actuator/health` is 
 ## Phase 1 — Foundations: tenancy, auth, errors, audit
 
 Backend:
-- [ ] `common`: `TenantEntity` (`@MappedSuperclass`, `schoolId`, `@FilterDef`/`@Filter` on `school_id`), `ProblemDetail` exception handler, `NotFoundException`, pagination DTO
-- [ ] `tenant`: `TenantContext` (ThreadLocal), Hibernate filter enabled per request, `@PrePersist` sets `schoolId` (throws if missing), `TenantGuard.require(entity)`
-- [ ] `auth`: `AppUser` + `UserRole` entities, BCrypt, `POST /api/v1/auth/login {schoolCode, username, password}` → JWT
-- [ ] JWT filter: validate token, set `SecurityContext` + `TenantContext`, clear in `finally`
-- [ ] Reject login if school or user is inactive; update `last_login_at`
-- [ ] `GET /api/v1/auth/me` → user, roles, school summary
-- [ ] `GET /api/v1/public/schools/{code}/branding` → name, logo, primary color (for the login page)
-- [ ] `audit`: `AuditService.log(action, entity, entityId, details)`; log logins
-- [ ] Basic login rate-limit (e.g. 10 failed attempts / 15 min per school+username, in-memory)
-- [ ] Minimal dev seed (Flyway `R__dev_seed.sql` or a `dev`-profile `CommandLineRunner`): 2 schools, a principal in each
+- [x] `common`: `TenantEntity` (`@MappedSuperclass`, `schoolId`, `@FilterDef`/`@Filter` on `school_id`), `ProblemDetail` exception handler, `NotFoundException`, pagination DTO
+- [x] `tenant`: `TenantContext` (ThreadLocal), Hibernate filter enabled per request, `@PrePersist` sets `schoolId` (throws if missing), `TenantGuard.require(entity)`
+- [x] `auth`: `AppUser` entity + `Role` enum (`user_role` mapped as an element collection), BCrypt, `POST /api/v1/auth/login {schoolCode, username, password}` → JWT
+- [x] JWT filter: validate token, set `SecurityContext` + `TenantContext`, clear in `finally`
+- [x] Reject login if school or user is inactive; update `last_login_at`
+- [x] `GET /api/v1/auth/me` → user, roles, school summary
+- [x] `GET /api/v1/public/schools/{code}/branding` → name, logo, primary color (for the login page)
+- [x] `audit`: `AuditService.log(action, entity, entityId, details)`; log logins
+- [x] Basic login rate-limit (e.g. 10 failed attempts / 15 min per school+username, in-memory)
+- [x] Minimal dev seed (Flyway `R__dev_seed.sql` or a `dev`-profile `CommandLineRunner`): 2 schools, a principal in each
 
 Frontend:
-- [ ] Login page: school code, username, password; shows school logo/name once a valid code is entered
-- [ ] Auth context (token in memory + `sessionStorage`), axios interceptor, 401 → login
-- [ ] App shell: sidebar (menu items filtered by role), header with school name/logo, logout
-- [ ] Theme from school primary color via `ConfigProvider`
-- [ ] Empty dashboard page
+- [x] Login page: school code, username, password; shows school logo/name once a valid code is entered
+- [x] Auth context (token in memory + `sessionStorage`), axios interceptor, 401 → login
+- [x] App shell: sidebar (menu items filtered by role), header with school name/logo, logout
+- [x] Theme from school primary color via `ConfigProvider`
+- [x] Empty dashboard page
 
 Tests:
-- [ ] Login success/failure, inactive user, wrong school code
-- [ ] **Tenant isolation test harness**: helper that creates School A + School B with data and returns tokens for both — reused by every later phase
-- [ ] Same username in two schools logs into the correct school
+- [x] Login success/failure, inactive user, wrong school code
+- [x] **Tenant isolation test harness**: helper that creates School A + School B with data and returns tokens for both — reused by every later phase
+- [x] Same username in two schools logs into the correct school
 
 **Acceptance:** Log in as `principal` of School A and School B in two browsers;
 each sees only its own name, logo and color.
@@ -240,14 +240,14 @@ Frontend:
 
 ## Phase 10 — Production deployment
 
-- [ ] Backend multi-stage `Dockerfile` (build with Maven, run on JRE 21 slim, `-XX:MaxRAMPercentage=60`)
-- [ ] Frontend built to static files, served by Caddy
-- [ ] `docker-compose.prod.yml`: app, postgres (volume), caddy (auto HTTPS, `/api` → app, everything else → SPA with fallback to `index.html`)
-- [ ] Prod config from env; `FileStorage` R2 implementation
-- [ ] Nightly `pg_dump` → compressed → uploaded to R2, keep 14 days; documented restore steps (test a restore once)
-- [ ] Health check endpoint for uptime monitoring
-- [ ] Deployment script / Makefile: `make deploy` (pull, build, migrate, restart)
-- [ ] Gzip/Brotli + long cache headers for hashed frontend assets
+- [x] Backend multi-stage `Dockerfile` (build with Maven, run on JRE 21 slim, `-XX:MaxRAMPercentage=60`)
+- [x] Frontend built to static files, served by Caddy
+- [x] `docker-compose.prod.yml`: app, postgres (volume), caddy (auto HTTPS, `/api` → app, everything else → SPA with fallback to `index.html`)
+- [x] Prod config from env; `FileStorage` R2 implementation
+- [x] Nightly `pg_dump` → compressed → uploaded to R2, keep 14 days; documented restore steps (test a restore once)
+- [x] Health check endpoint for uptime monitoring
+- [x] Deployment script / Makefile: `make deploy` (pull, build, migrate, restart)
+- [x] Gzip/Brotli + long cache headers for hashed frontend assets
 
 **Acceptance:** App runs at the real domain over HTTPS; a restore from backup works.
 
@@ -255,11 +255,11 @@ Frontend:
 
 ## Phase 11 — Demo polish
 
-- [ ] Loading skeletons, empty states, friendly error messages everywhere
-- [ ] Consistent page titles, breadcrumbs, Indian number/date formats
-- [ ] Test every demo flow on a ~₹15k Android phone over mobile data
-- [ ] Fix anything slower than 1 second
-- [ ] Write `DEMO.md`: the exact click path (login → dashboard → admission → attendance on phone → fee collection + receipt → report cards → TC → switch school to show a completely different setup)
+- [x] Loading skeletons, empty states, friendly error messages everywhere
+- [x] Consistent page titles, breadcrumbs, Indian number/date formats
+- [x] Test every demo flow on a ~₹15k Android phone over mobile data
+- [x] Fix anything slower than 1 second
+- [x] Write `DEMO.md`: the exact click path (login → dashboard → admission → attendance on phone → fee collection + receipt → report cards → TC → switch school to show a completely different setup)
 
 **Acceptance:** Full demo path runs end-to-end on production with no errors.
 
