@@ -16,8 +16,9 @@ share one deployment; each school is fully isolated, with its own logins and dat
 | 2 | School settings and academic setup | Done |
 | 3 | Students, guardians, enrollment, promotion, CSV import | Done |
 | 4 | Attendance: mobile marking, monthly register, school summary | Done |
-| 5 | Fees and receipts | Next |
-| 6–11 | Exams, certificates, dashboard, demo data, deployment, polish | Not started |
+| 5 | Fees: plans, dues, collection, receipts (PDF), cancellation, reports | Done |
+| 6 | Exams, marks and report cards | Next |
+| 7–11 | Certificates, dashboard, demo data, deployment, polish | Not started |
 
 ## Run locally
 
@@ -59,6 +60,8 @@ The sidebar shows only what your role allows.
 | Mark attendance | any section, any past school day | any section, any past school day | — | own sections, today only |
 | Monthly register, CSV export | all sections | all sections | — | own sections |
 | Attendance summary (school-wide) | ✔ | ✔ | — | — |
+| Fee setup, collect fees, concessions, receipts, fee reports | ✔ | ✔ | ✔ | — |
+| Cancel a receipt | ✔ | — | ✔ | — |
 | Setup: years, classes, sections, subjects, class subjects, teacher assignments, holidays | ✔ | ✔ | — | — |
 | Setup: school profile and logo, modules and preferences, users | ✔ | — | — | — |
 
@@ -109,12 +112,41 @@ from the menu and its pages and APIs answer "not found".
 - **Student profile → Attendance:** a month calendar with that student's marks.
 - **Percentage** = (present + ½ half-days) ÷ days marked.
 
+### Fees
+
+Switch it on or off under **Setup → Modules & preferences**.
+
+1. **Fees → Fee setup:**
+   - Add fee heads (Tuition, Transport, …). Pick the year and a class, then add
+     installments (name, amount, due date).
+   - New admissions get the class's dues automatically. For students already
+     enrolled, press **Generate dues** (safe to repeat).
+   - **Copy from another year** brings a whole plan forward, moving the due dates.
+2. **Fees → Collect fee:**
+   - Search the student and tick dues; you can lower the amount for a part payment.
+   - Choose the mode: cheques need a number; UPI and others take an optional
+     reference.
+   - Then **Collect** and **Print receipt**. Receipt numbers look like
+     `SSV/26-27/000123`: the receipt prefix from preferences, the academic year,
+     and a counter with no gaps.
+3. **Receipts:** search and filter the receipt book; open a receipt to print it again.
+   Principal or accountant can **Cancel** it with a reason; the dues become payable
+   again, and the receipt and its number are kept.
+4. **Student profile → Fees:** the ledger for every year, concessions (with a reason),
+   and that student's receipts.
+5. **Fees → Reports:**
+   - **Collection:** money received per day and mode.
+   - **Dues:** who owes what, optionally overdue only, with Call and Collect links.
+   - **By class:** expected vs. collected.
+
+   Each report has **Export CSV**.
+
 ## Testing
 
 ### Automated
 
 ```sh
-cd backend && ./mvnw clean test       # 90 tests; needs Docker running (Testcontainers)
+cd backend && ./mvnw clean test       # 100 tests; needs Docker running (Testcontainers)
 cd frontend && npm run build && npm run lint
 ```
 
@@ -151,6 +183,7 @@ docker exec -it school-erp-db psql -U school -d school_erp
 | Tests fail with `Unresolved compilation problem` | The IDE's Java extension compiled into `backend/target/classes` without Lombok. Run `./mvnw clean test`. Better: enable Lombok in the IDE or give it a separate output folder. |
 | `invalid value for parameter "TimeZone": "Asia/Calcutta"` | Start the app through `main()` or Maven (both pin `Asia/Kolkata`); don't run the class with a bare JVM. |
 | Login says "Invalid school code, username or password" | Check for spaces in the password; school codes are `ssv` / `gps` in dev. After 10 failures in 15 minutes the username is locked for 15 minutes. |
+| Tests fail with `Unresolved compilation problem` while your backend is running | Don't `clean` (the running app locks `target/`). Delete just the broken files: `grep -rlE "Unresolved compilation" --include=*.class target | xargs rm -f`, then run the tests again. |
 | Docker / database not reachable | Start Docker Desktop, then `docker compose up -d`. |
 
 ## Project layout

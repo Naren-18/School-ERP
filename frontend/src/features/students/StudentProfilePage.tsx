@@ -11,9 +11,10 @@ import { errorMessage, isNotFound } from '../../api/client'
 import { studentsApi, type EnrollmentView, type StudentDetail } from '../../api/students'
 import { useAuth } from '../../auth/useAuth'
 import { useFormErrors } from '../../components/useFormErrors'
-import { PRINCIPAL_ADMIN } from '../../layout/menu'
+import { FEE_STAFF, PRINCIPAL_ADMIN } from '../../layout/menu'
 import { API_DATE_FORMAT, DATE_FORMAT, formatDate } from '../../utils/format'
 import { StudentAttendanceTab } from '../attendance/StudentAttendanceTab'
+import { StudentFeesTab } from '../fees/StudentFeesTab'
 import { useYears } from '../settings/queries'
 import { CATEGORIES, ENROLLMENT_STATUS, GENDERS, RELATIONS, STUDENT_STATUS, labelOf } from './labels'
 import { SectionSelect } from './SectionSelect'
@@ -122,7 +123,10 @@ export function StudentProfilePage() {
             ...(me?.school.modules.attendance
               ? [{ key: 'attendance', label: 'Attendance', children: <StudentAttendanceTab studentId={s.id} /> }]
               : []),
-            ...['Fees', 'Marks', 'Certificates'].map((label) => ({
+            ...(me?.school.modules.fees && hasAnyRole(FEE_STAFF)
+              ? [{ key: 'fees', label: 'Fees', children: <StudentFeesTab studentId={s.id} /> }]
+              : []),
+            ...['Marks', 'Certificates'].map((label) => ({
               key: label.toLowerCase(),
               label,
               children: <Empty description={`${label} will appear here once the module is set up.`} />,

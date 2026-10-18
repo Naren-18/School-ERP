@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import {
   BankOutlined, BookOutlined, CalendarOutlined, CarryOutOutlined, CheckSquareOutlined, ClusterOutlined, ControlOutlined, DashboardOutlined,
   ReadOutlined, RiseOutlined, ScheduleOutlined, SettingOutlined, SolutionOutlined, TeamOutlined, UnorderedListOutlined,
-  UploadOutlined, UserAddOutlined, TableOutlined, PieChartOutlined,
+  UploadOutlined, UserAddOutlined, TableOutlined, PieChartOutlined, WalletOutlined, DollarOutlined, FileTextOutlined,
+  BarChartOutlined, ToolOutlined,
 } from '@ant-design/icons'
 import type { Role } from '../api/auth'
 import type { Modules } from '../api/school'
@@ -21,6 +22,7 @@ export const ALL_ROLES: readonly Role[] = ['PRINCIPAL', 'ADMIN', 'ACCOUNTANT', '
 export const PRINCIPAL: readonly Role[] = ['PRINCIPAL']
 export const PRINCIPAL_ADMIN: readonly Role[] = ['PRINCIPAL', 'ADMIN']
 export const TEACHING: readonly Role[] = ['PRINCIPAL', 'ADMIN', 'TEACHER']
+export const FEE_STAFF: readonly Role[] = ['PRINCIPAL', 'ADMIN', 'ACCOUNTANT']
 
 /** Sidebar entries; each is shown only to the listed roles. Later phases add modules here. */
 export const MENU: readonly MenuEntry[] = [
@@ -47,6 +49,19 @@ export const MENU: readonly MenuEntry[] = [
       { path: '/attendance', label: 'Mark attendance', icon: <CheckSquareOutlined />, roles: TEACHING },
       { path: '/attendance/register', label: 'Monthly register', icon: <TableOutlined />, roles: TEACHING },
       { path: '/attendance/today', label: 'Summary', icon: <PieChartOutlined />, roles: PRINCIPAL_ADMIN },
+    ],
+  },
+  {
+    path: '/fees',
+    label: 'Fees',
+    icon: <WalletOutlined />,
+    roles: FEE_STAFF,
+    module: 'fees',
+    children: [
+      { path: '/fees/collect', label: 'Collect fee', icon: <DollarOutlined />, roles: FEE_STAFF },
+      { path: '/fees/receipts', label: 'Receipts', icon: <FileTextOutlined />, roles: FEE_STAFF },
+      { path: '/fees/reports', label: 'Reports', icon: <BarChartOutlined />, roles: FEE_STAFF },
+      { path: '/fees/setup', label: 'Fee setup', icon: <ToolOutlined />, roles: FEE_STAFF },
     ],
   },
   {

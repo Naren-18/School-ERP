@@ -1,6 +1,6 @@
 # Architecture
 
-How the School ERP is built, as of the end of **Phase 4** (attendance).
+How the School ERP is built, as of the end of **Phase 5** (fees and receipts).
 For the rules that every change must follow, see [`CLAUDE.md`](CLAUDE.md); for the phase
 plan, see [`PLAN.md`](PLAN.md); for running it, see [`README.md`](README.md).
 
@@ -38,6 +38,7 @@ PostgreSQL 16    (schema owned by Flyway)
 | JSON | Jackson | 3.1 |
 | Database | PostgreSQL, Flyway migrations | 16 |
 | JWT | `spring-security-oauth2-jose` (Nimbus), HS256 | managed by Boot |
+| PDF | openhtmltopdf (maintained fork `io.github.openhtmltopdf`) on PDFBox 3; DejaVu Sans from `net.sf.jasperreports:jasperreports-fonts` | 1.1.94; fonts 6.21.3 |
 | Tests | JUnit 5, Testcontainers (Postgres 16), MockMvc, AssertJ | managed by Boot |
 | Frontend | React, Vite, TypeScript | React 19, Vite 8, TS 6 |
 | UI / data | Ant Design 6 (+ icons), TanStack Query 5, React Router 7, axios, dayjs | |
@@ -46,6 +47,11 @@ PostgreSQL 16    (schema owned by Flyway)
 Libraries added beyond the stack in `CLAUDE.md`:
 - **`spring-security-oauth2-jose`:** JWT signing and verification, part of Spring
   Security.
+- **`io.github.openhtmltopdf:openhtmltopdf-pdfbox`:** the PDF engine `CLAUDE.md` names; the
+  original `com.openhtmltopdf` has had no release since 2021.
+- **`net.sf.jasperreports:jasperreports-fonts`:** only for its DejaVu Sans TTF files. The
+  built-in PDF fonts have no ₹ glyph and servers have no system fonts; the artifact has
+  no dependencies, and a test checks the glyph is present.
 - **`@ant-design/icons`:** already pulled in by antd; declared because it's imported
   directly.
 
@@ -66,7 +72,8 @@ Package root `com.schoolerp`. Each module has `controller/ service/ repository/ 
 | `audit` | `AuditService` writing `audit_log` |
 | `files` | `FileStorage` interface, `LocalFileStorage`, `ImageTypes` (detects image type from content) |
 | `attendance` | Marking a section for a day (bulk upsert), access and date rules, monthly register (+ CSV), student month, school-wide day summary; behind `@RequiresModule(ATTENDANCE)` |
-| `fee`, `exam`, `certificate`, `dashboard` | Empty, filled in by Phases 5–8 |
+| `fee` | Fee heads, per-class installment plans (copy between years), student dues (created on `StudentEnrolledEvent`, or by "generate"), concessions, collection into gap-free receipts, cancellation, receipt PDF, collection/dues/class reports; behind `@RequiresModule(FEES)` |
+| `exam`, `certificate`, `dashboard` | Empty, filled in by Phases 6–8 |
 
 ## 4. Tenant isolation (the most important design)
 
@@ -176,12 +183,18 @@ checks the schema and never alters it. Tables in use so far:
 | `guardian` | `Guardian` | 1–4 per student; one primary |
 | `enrollment` | `Enrollment` | One per student per year; `ACTIVE / PROMOTED / DETAINED / LEFT` |
 | `attendance` | `Attendance` | One row per enrollment per date; status `P/A/L/H` (`bpchar(1)`); `marked_by`, `marked_at` |
+| `fee_head` | `FeeHead` | Inactive heads stay on old plans; a used head can only be deactivated |
+| `fee_installment` | `FeeInstallment` | Year + class + head + name; amount and due date |
+| `student_fee_due` | `StudentFeeDue` | One per enrollment per installment; amount, concession (+ reason), paid; DB checks keep 0 ≤ paid ≤ amount − concession |
+| `fee_receipt` | `FeeReceipt` | Never deleted; `cancelled` + who, when, why |
+| `fee_receipt_line` | `FeeReceiptLine` (`BaseEntity`, **no school_id**) | Only read by the ids of receipts already loaded through the tenant filter |
+| `receipt_counter` | (plain SQL) | One row per school + year, locked `FOR UPDATE` |
 
 Foreign keys are mapped as plain `Long` ids, not JPA associations. Services batch-load
 related rows into maps. This keeps every query explicit and tenant-scoped, and avoids
 lazy-loading surprises.
 
-Money (`NUMERIC(10,2)` ↔ `BigDecimal`) starts in Phase 5. Dates are `LocalDate` and
+Money is `NUMERIC(10,2)` ↔ `BigDecimal` (2 decimals, validated with `@Digits`). Dates are `LocalDate` and
 timestamps `OffsetDateTime`. The JVM and JSON time zone is `Asia/Kolkata`.
 
 ## 8. Notable mechanisms
@@ -244,6 +257,30 @@ timestamps `OffsetDateTime`. The JVM and JSON time zone is `Asia/Kolkata`.
   - **Summary:** the school-wide day summary is one SQL query per day
     (`AttendanceReportRepository`). Sections with nobody enrolled that day are not
     counted as "to mark".
+- **Fees:**
+  - **Dues:** created from the class plan when a student is enrolled (the fee module
+    listens to `StudentEnrolledEvent`, in the same transaction). "Generate dues" fills
+    in what is missing for students already enrolled, and is idempotent.
+  - **Plan edits:** changing an installment's amount updates its dues, and is refused if
+    a student has paid or been given a concession above the new amount. Deleting one
+    is refused once payments exist.
+  - **Collecting:** one receipt for one student and one academic year. Each line is at
+    most that due's balance (otherwise 409). Cheques need a number.
+  - **Locking:** the dues are locked `FOR UPDATE` in id order, then the
+    `receipt_counter` row is locked and incremented.
+  - **Numbers** are `PREFIX/YY-YY/000123` (the receipt prefix from settings). A failed
+    payment rolls its number back, and cancelled receipts keep theirs, so numbers are
+    unique and gap-free. A test runs 8 concurrent payments.
+  - **Cancelling** (principal/accountant, reason required) subtracts each line from its
+    due and keeps the receipt.
+  - **Receipt PDF:** an XHTML template rendered by openhtmltopdf with embedded DejaVu
+    Sans. Every value is HTML-escaped; amounts appear as ₹1,23,456.00, with the amount
+    in Indian words (lakh/crore). The school logo is embedded when it's an uploaded
+    PNG/JPEG/WebP.
+  - **Reports** are plain SQL (`FeeReportRepository`):
+    - collection by day and mode (cancelled receipts excluded)
+    - dues per student, with overdue being past the due date
+    - expected vs. collected per class
 - **Events:** `StudentEnrolledEvent` is published on every new enrollment (admission,
   promotion, enrolling later). Phase 5 will listen to it to create fee dues.
 - **Audit:** `AuditService.log(action, entity, id, details)`. Logged so far:
@@ -275,6 +312,9 @@ Public: `POST /auth/login`, `GET /public/schools/{code}/branding`, `GET /public/
 | Enrollment | `GET /sections/{id}/students?includeInactive` · `POST /sections/{id}/renumber` · `PUT /enrollments/{id}/section` · `POST /promotions` | read: any (teachers scoped); write: principal/admin |
 | Attendance | `GET /attendance/sections?date` · `GET /attendance/sections/{id}?date` · `PUT /attendance/sections/{id}?date` · `GET /attendance/sections/{id}/register?month=yyyy-MM` · `GET …/register.csv?month` | principal/admin/teacher (teachers: own sections, today only for changes) |
 | Attendance reports | `GET /attendance/students/{id}?month` · `GET /attendance/today?date` | student month: any staff who may see the student; today: principal/admin |
+| Fee setup | `GET/POST /fees/heads` · `PUT/DELETE /fees/heads/{id}` · `GET /fees/plan?academicYearId&classId` · `POST /fees/plan` · `PUT/DELETE /fees/plan/{id}` · `POST /fees/plan/copy` · `POST /fees/dues/generate` | principal/admin/accountant |
+| Fees | `GET /fees/students/{id}` · `PUT /fees/dues/{id}/concession` · `POST /fees/receipts` · `GET /fees/receipts?from&to&q&cancelled&page` · `GET /fees/receipts/{id}` · `GET /fees/receipts/{id}/pdf` · `POST /fees/receipts/{id}/cancel` | principal/admin/accountant; **cancel: principal/accountant** |
+| Fee reports | `GET /fees/reports/collection?from&to` · `GET /fees/reports/dues?academicYearId&classId&sectionId&overdueOnly` · `GET /fees/reports/class-summary?academicYearId` | principal/admin/accountant |
 
 Conventions:
 - Requests and responses are Java `record` DTOs; entities are never exposed.
@@ -319,6 +359,7 @@ src/
   - `/students`, `/students/new`, `/students/:id`, `/students/:id/edit`,
     `/students/promotion`, `/students/import`
   - `/attendance` (`?section=&date=`), `/attendance/register`, `/attendance/today`
+  - `/fees/collect` (`?student=`), `/fees/receipts`, `/fees/reports`, `/fees/setup`
   - `/settings/{school,preferences,years,classes,subjects,class-subjects,assignments,holidays,users}`
 
   Every route has a role guard that matches its API.
@@ -346,7 +387,7 @@ Other settings:
 
 ## 12. Testing strategy
 
-- **90 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
+- **100 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
   Testcontainers. One Spring context is shared, plus one extra for the module-guard
   probe.
 - **`IntegrationTest`** base class: MockMvc, request helpers (`getAs`, `postAs`,
@@ -367,6 +408,11 @@ Other settings:
     future and other-year blocks, teacher scope and today-only, accountant refused,
     register, CSV, student month, day summary, module off, School A vs B
   - production safety check (dev seed password and profile)
+  - fees: dues on admission, idempotent generate, partial pay, overpay 409, cheque number,
+    cancel restores dues, receipt numbering, concessions, plan edits blocked by
+    payments, copy plan, reports, roles (teacher refused, admin can't cancel), module
+    off, 8 concurrent payments (gap-free numbers, no lost update), School A vs B on
+    every fee endpoint, amount in words, ₹ glyph in the bundled font
   - unit tests for Verhoeff, AES-GCM and CSV
 - **Frontend:** `tsc` and `oxlint` must be clean. Flows were checked by hand in the
   browser at the end of each phase.
@@ -392,6 +438,10 @@ Other settings:
 | Attendance saves the whole section at once and rejects partial lists | The screen defaults everyone to Present; a partial save would leave students silently unmarked |
 | Teachers change only today; principal/admin correct past days | Matches the plan, and keeps the register trustworthy after the day ends |
 | The day summary counts only sections that had students that day | An empty or not-yet-started section is not "pending" |
+| Fee dues are locked `FOR UPDATE` while collecting or cancelling | Two payments on the same due could otherwise overwrite each other's `paid_amount` (found while writing the concurrency test) |
+| One receipt per student per academic year | `fee_receipt` has one `enrollment_id` and `academic_year_id`; arrears from last year go on their own receipt |
+| Receipt lines have no `school_id` and are not a `TenantEntity` | The V1 table has no such column; lines are only reached through receipts already filtered by school |
+| Fee report CSVs are built in the browser from the report data | No extra endpoints; the data on screen is what is exported |
 | Sidebar menu is not mounted while the mobile drawer is closed | Inside a collapsed `Sider`, antd turns the inline menu into popups that opened over the page |
 
 ## 14. Known limitations / technical debt
@@ -430,17 +480,22 @@ Other settings:
 - **Late holidays don't clear marks.** Declaring a holiday on a day that already has
   attendance doesn't remove those marks, so they still count in totals.
 
+- **Seeded placeholder logos don't print.** The SVG data-URI logos of the dev schools are
+  not embedded in PDFs (openhtmltopdf would need its SVG add-on); uploaded PNG/JPEG/WebP
+  logos are.
+- **No fee refunds or advance payments.** Money only goes against existing dues; a
+  mistake is corrected by cancelling the receipt.
+
 ## 15. What's next
 
-Phase 5 is **fees and receipts**:
-- fee heads and per-class installment plans (copy from last year)
-- dues per student, generated by listening to `StudentEnrolledEvent`, which is
-  already published on every enrollment
-- concessions
-- collecting payments into gap-free receipt numbers (`PREFIX/YY-YY/000123`,
-  using the receipt prefix from school settings)
-- receipt PDFs and cancellation
-- collection and dues reports
+Phase 6 is **exams, marks and report cards**:
+- grading scales and bands, with "TS state CCE" and "CBSE 9-point" presets
+- exams per year with weightage, and exam subjects per class (max and pass marks)
+- a keyboard- and phone-friendly marks grid; teachers limited to their assigned
+  subject and section (`TeacherScopeService`)
+- publish/unpublish, which locks marks
+- result computation (grade bands, weighted final result)
+- report card PDFs per student and per section, reusing the PDF setup built for
+  receipts
 
-It will also be the first module with money (`NUMERIC(10,2)` ↔ `BigDecimal`), and
-it sits behind `@RequiresModule(FEES)`. Phases 6–11 follow the order in `PLAN.md`.
+Phases 7–11 follow the order in `PLAN.md`.

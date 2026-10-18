@@ -141,26 +141,26 @@ Tests:
 ## Phase 5 — Fees & receipts
 
 Backend:
-- [ ] Fee heads CRUD; fee plan = installments per class per year (head, name, amount, due date)
-- [ ] "Copy plan from previous year"
-- [ ] Generate `student_fee_due` rows for all enrolled students of a class (idempotent) and on new enrollment
-- [ ] Concessions per due row (amount + reason)
-- [ ] Collect payment: choose dues, amounts (partial allowed), mode, reference → receipt
+- [x] Fee heads CRUD; fee plan = installments per class per year (head, name, amount, due date)
+- [x] "Copy plan from previous year"
+- [x] Generate `student_fee_due` rows for all enrolled students of a class (idempotent) and on new enrollment
+- [x] Concessions per due row (amount + reason)
+- [x] Collect payment: choose dues, amounts (partial allowed), mode, reference → receipt
   - single transaction; `receipt_counter` row locked `FOR UPDATE`; receipt no `PREFIX/YY-YY/000123`
   - update `paid_amount`; never exceed net due
-- [ ] Cancel receipt (PRINCIPAL/ACCOUNTANT, reason required) → reverses `paid_amount`, audit logged
-- [ ] Receipt PDF (school logo, details, amount in words in Indian format)
-- [ ] Reports: day collection by mode, dues list (class/section, overdue only), student ledger, collection vs. expected per class
+- [x] Cancel receipt (PRINCIPAL/ACCOUNTANT, reason required) → reverses `paid_amount`, audit logged
+- [x] Receipt PDF (school logo, details, amount in words in Indian format)
+- [x] Reports: day collection by mode, dues list (class/section, overdue only), student ledger, collection vs. expected per class
 
 Frontend:
-- [ ] Fee setup pages (heads, plan per class)
-- [ ] Collect fee screen: search student → outstanding dues → pay → print/download receipt
-- [ ] Student profile → Fees tab (ledger)
-- [ ] Reports pages with CSV export
+- [x] Fee setup pages (heads, plan per class)
+- [x] Collect fee screen: search student → outstanding dues → pay → print/download receipt
+- [x] Student profile → Fees tab (ledger)
+- [x] Reports pages with CSV export
 
 Tests:
-- [ ] Concurrent receipt creation yields unique gap-free numbers
-- [ ] Overpayment rejected; cancel restores dues; isolation
+- [x] Concurrent receipt creation yields unique gap-free numbers
+- [x] Overpayment rejected; cancel restores dues; isolation
 
 **Acceptance:** Collect a partial payment, print the receipt, cancel it, and see the dues report update correctly.
 

@@ -21,9 +21,13 @@ import { StudentProfilePage } from './features/students/StudentProfilePage'
 import { MarkAttendancePage } from './features/attendance/MarkAttendancePage'
 import { RegisterPage } from './features/attendance/RegisterPage'
 import { TodayPage } from './features/attendance/TodayPage'
+import { CollectFeePage } from './features/fees/CollectFeePage'
+import { FeeReportsPage } from './features/fees/FeeReportsPage'
+import { FeeSetupPage } from './features/fees/FeeSetupPage'
+import { ReceiptsPage } from './features/fees/ReceiptsPage'
 import { AppShell } from './layout/AppShell'
 import { BrandTheme } from './layout/BrandTheme'
-import { PRINCIPAL, PRINCIPAL_ADMIN, TEACHING } from './layout/menu'
+import { FEE_STAFF, PRINCIPAL, PRINCIPAL_ADMIN, TEACHING } from './layout/menu'
 
 const only = (roles: readonly Role[], page: ReactNode) => <RequireRole roles={roles}>{page}</RequireRole>
 
@@ -59,6 +63,20 @@ export default function App() {
             <Route index element={only(TEACHING, <MarkAttendancePage />)} />
             <Route path="register" element={only(TEACHING, <RegisterPage />)} />
             <Route path="today" element={only(PRINCIPAL_ADMIN, <TodayPage />)} />
+          </Route>
+          <Route
+            path="fees"
+            element={
+              <RequireModule module="fees">
+                <Outlet />
+              </RequireModule>
+            }
+          >
+            <Route index element={<Navigate to="collect" replace />} />
+            <Route path="collect" element={only(FEE_STAFF, <CollectFeePage />)} />
+            <Route path="receipts" element={only(FEE_STAFF, <ReceiptsPage />)} />
+            <Route path="reports" element={only(FEE_STAFF, <FeeReportsPage />)} />
+            <Route path="setup" element={only(FEE_STAFF, <FeeSetupPage />)} />
           </Route>
           <Route path="settings">
             <Route index element={<Navigate to="years" replace />} />

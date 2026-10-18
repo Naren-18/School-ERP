@@ -12,6 +12,12 @@ public final class Access {
 	/** Everything else administrative (academic setup, students, ...). */
 	public static final String PRINCIPAL_OR_ADMIN = "hasAnyRole('PRINCIPAL','ADMIN')";
 
+	/** Fee setup, collection, concessions and reports. */
+	public static final String FEE_STAFF = "hasAnyRole('PRINCIPAL','ADMIN','ACCOUNTANT')";
+
+	/** Cancelling a receipt (PLAN.md: principal or accountant, with a reason). */
+	public static final String FEE_CANCEL = "hasAnyRole('PRINCIPAL','ACCOUNTANT')";
+
 	/** Attendance and marks: principal, admin, and teachers (services limit teachers to their sections). */
 	public static final String TEACHING_STAFF = "hasAnyRole('PRINCIPAL','ADMIN','TEACHER')";
 

@@ -93,6 +93,14 @@ public class SchoolService {
 		return SchoolProfileResponse.of(school);
 	}
 
+	/** The current school's uploaded logo (not the seeded SVG placeholders), for PDFs. */
+	@Transactional(readOnly = true)
+	public Optional<Logo> currentLogo() {
+		School school = requireCurrent();
+		return storedLogoFile(school.getLogoUrl()).flatMap(file -> storage.get(logoKey(school.getId(), file))
+			.map(bytes -> new Logo(bytes, ImageTypes.contentType(file.substring(file.lastIndexOf('.') + 1)))));
+	}
+
 	/** Public: serves only the school's current logo, so old or guessed names 404. */
 	@Transactional(readOnly = true)
 	public Logo publicLogo(String code, String fileName) {

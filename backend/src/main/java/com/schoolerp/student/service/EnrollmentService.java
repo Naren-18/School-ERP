@@ -263,7 +263,8 @@ public class EnrollmentService {
 		return views(enrollments.findBySchoolIdAndStudentIdOrderByJoinedOnDesc(TenantContext.require(), studentId));
 	}
 
-	private Enrollment require(Long id) {
+	/** The enrollment if it belongs to this school; otherwise 404. */
+	public Enrollment require(Long id) {
 		return enrollments.findByIdAndSchoolId(id, TenantContext.require())
 			.orElseThrow(() -> new NotFoundException("Enrollment"));
 	}
