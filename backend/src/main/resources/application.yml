@@ -1,0 +1,78 @@
+spring:
+  application:
+    name: school-erp
+  profiles:
+    default: dev
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: Asia/Kolkata
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    time-zone: Asia/Kolkata
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  timezone: Asia/Kolkata
+  cors:
+    allowed-origin: ${APP_CORS_ALLOWED_ORIGIN}
+  jwt:
+    secret: ${JWT_SECRET}
+    expiry: 12h
+  encryption:
+    key: ${APP_ENCRYPTION_KEY}
+  files:
+    local-dir: ${FILE_STORAGE_LOCAL_DIR:./data/files}
+
+---
+# Local development: reads ../.env (same file docker compose uses) and falls back
+# to safe local-only defaults so a fresh checkout runs without extra setup.
+spring:
+  config:
+    activate:
+      on-profile: dev
+    import: optional:file:../.env[.properties]
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:school_erp}
+    username: ${DB_USERNAME:school}
+    password: ${DB_PASSWORD:school}
+
+app:
+  cors:
+    allowed-origin: ${APP_CORS_ALLOWED_ORIGIN:http://localhost:5173}
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-0123456789abcdef}
+  encryption:
+    key: ${APP_ENCRYPTION_KEY:ZGV2LW9ubHkta2V5LWNoYW5nZS1tZS0zMmJ5dGVzISE=}
+
+---
+# Production: every value must come from the environment. No defaults.
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    root: INFO

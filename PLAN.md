@@ -1,0 +1,272 @@
+# PLAN.md — School ERP MVP build plan
+
+Follow the rules in `CLAUDE.md` throughout. Work through phases in order.
+Tick each checkbox as it is completed. Each phase ends with its **Acceptance**
+checks passing and a commit.
+
+Target: a hosted demo with 3 fictional schools that a school owner can click
+through on a laptop and a phone. Rough timeline: 4 weeks part-time.
+
+---
+
+## Phase 0 — Repository & local environment
+
+- [x] Create the repo layout from `CLAUDE.md`
+- [x] `docker-compose.yml` with Postgres 16 (db `school_erp`, user/pass from `.env`)
+- [x] `.env.example` listing every env var; `.env` git-ignored
+- [x] Backend: Spring Boot project (Web, Data JPA, Security, Validation, PostgreSQL, Flyway, Lombok, Testcontainers)
+- [x] Place `V1__core_schema.sql` in `backend/src/main/resources/db/migration/`
+- [x] `application.yml` with profiles `dev` and `prod`; `ddl-auto=validate`; timezone Asia/Kolkata
+- [x] Frontend: `npm create vite@latest frontend -- --template react-ts`, add antd, @tanstack/react-query, react-router-dom, axios, dayjs
+- [x] Vite dev proxy `/api` → `http://localhost:8080`
+- [x] README with "how to run locally" (3 commands max)
+
+**Acceptance:** `docker compose up -d`, start backend → Flyway applies V1 (28 tables).
+Frontend dev server shows a placeholder page. Backend `GET /actuator/health` is UP.
+
+---
+
+## Phase 1 — Foundations: tenancy, auth, errors, audit
+
+Backend:
+- [ ] `common`: `TenantEntity` (`@MappedSuperclass`, `schoolId`, `@FilterDef`/`@Filter` on `school_id`), `ProblemDetail` exception handler, `NotFoundException`, pagination DTO
+- [ ] `tenant`: `TenantContext` (ThreadLocal), Hibernate filter enabled per request, `@PrePersist` sets `schoolId` (throws if missing), `TenantGuard.require(entity)`
+- [ ] `auth`: `AppUser` + `UserRole` entities, BCrypt, `POST /api/v1/auth/login {schoolCode, username, password}` → JWT
+- [ ] JWT filter: validate token, set `SecurityContext` + `TenantContext`, clear in `finally`
+- [ ] Reject login if school or user is inactive; update `last_login_at`
+- [ ] `GET /api/v1/auth/me` → user, roles, school summary
+- [ ] `GET /api/v1/public/schools/{code}/branding` → name, logo, primary color (for the login page)
+- [ ] `audit`: `AuditService.log(action, entity, entityId, details)`; log logins
+- [ ] Basic login rate-limit (e.g. 10 failed attempts / 15 min per school+username, in-memory)
+- [ ] Minimal dev seed (Flyway `R__dev_seed.sql` or a `dev`-profile `CommandLineRunner`): 2 schools, a principal in each
+
+Frontend:
+- [ ] Login page: school code, username, password; shows school logo/name once a valid code is entered
+- [ ] Auth context (token in memory + `sessionStorage`), axios interceptor, 401 → login
+- [ ] App shell: sidebar (menu items filtered by role), header with school name/logo, logout
+- [ ] Theme from school primary color via `ConfigProvider`
+- [ ] Empty dashboard page
+
+Tests:
+- [ ] Login success/failure, inactive user, wrong school code
+- [ ] **Tenant isolation test harness**: helper that creates School A + School B with data and returns tokens for both — reused by every later phase
+- [ ] Same username in two schools logs into the correct school
+
+**Acceptance:** Log in as `principal` of School A and School B in two browsers;
+each sees only its own name, logo and color.
+
+---
+
+## Phase 2 — School settings & academic setup
+
+Backend:
+- [ ] School profile + settings (PRINCIPAL only). `settings` JSON shape, validated in Java:
+  ```json
+  {
+    "receiptPrefix": "SVS",
+    "certificatePrefix": "SVS",
+    "weekOffDays": ["SUNDAY"],
+    "modules": { "attendance": true, "fees": true, "exams": true, "certificates": true },
+    "reportCard": { "showRank": false, "showAttendance": true }
+  }
+  ```
+- [ ] Logo upload via `FileStorage` (local in dev)
+- [ ] CRUD: academic years (exactly one current), classes (ordered), sections (per year, class teacher), subjects
+- [ ] Class-subject mapping per year; teacher assignments (section + subject → teacher)
+- [ ] Holidays CRUD
+- [ ] User management (PRINCIPAL): create staff, assign roles, reset password, deactivate
+
+Frontend:
+- [ ] Settings pages: school profile & branding, modules toggles, academic years, classes & sections, subjects, class-subject mapping, teacher assignments, holidays, users
+- [ ] Disabled modules disappear from the sidebar and their APIs return 404
+
+Tests:
+- [ ] Isolation tests for every new endpoint
+- [ ] Only one current academic year; ADMIN cannot change settings or users
+
+**Acceptance:** A principal can set up a new school's year, classes, sections,
+subjects and staff entirely from the UI.
+
+---
+
+## Phase 3 — Students, guardians & enrollment
+
+Backend:
+- [ ] Student CRUD with guardians; admission number unique per school (auto-suggest next number)
+- [ ] Aadhaar encryption converter; sensitive fields hidden for non-ADMIN/PRINCIPAL
+- [ ] Photo upload
+- [ ] Enrollment on admission (year + section + roll no); roll-no auto-assign option
+- [ ] Section change within a year
+- [ ] Mark student LEFT (with date & reason) → enrollment LEFT
+- [ ] Year-end promotion: for a source section, promote selected students to a target section in the next year; others DETAINED
+- [ ] Search & filter: name, admission no, guardian phone, class/section, status; paginated
+- [ ] CSV import of students (template download + validation report) — schools will ask for bulk import
+- [ ] Generate fee dues for a student on enrollment (hook for Phase 5; no-op until then)
+
+Frontend:
+- [ ] Student list with filters, search, pagination
+- [ ] Admission form (multi-section: student, guardians, previous school, documents) with photo
+- [ ] Student profile page with tabs: Details, Attendance, Fees, Marks, Certificates (tabs filled in later phases)
+- [ ] Promotion wizard
+- [ ] CSV import screen
+
+Tests:
+- [ ] Isolation; TEACHER sees only students of their sections; sensitive-field masking per role
+- [ ] Promotion creates correct next-year enrollments
+
+**Acceptance:** Admit a student, find them by guardian phone, change section, promote to next year.
+
+---
+
+## Phase 4 — Attendance
+
+Backend:
+- [ ] Mark attendance for a section and date (bulk upsert), default all Present
+- [ ] Teacher may only mark sections they are class teacher of (or assigned to); edits allowed same day for teachers, any day for ADMIN/PRINCIPAL
+- [ ] Block marking on holidays/week-off days
+- [ ] Reports: section daily sheet, student monthly summary, school-wide today % by class
+
+Frontend:
+- [ ] **Mobile-first** marking screen: pick section → list with big P/A/L toggles → save
+- [ ] Monthly register view (students × days grid) with export to CSV
+- [ ] Student profile → Attendance tab with monthly calendar
+
+Tests:
+- [ ] Isolation; teacher cannot mark other sections; holiday blocked
+
+**Acceptance:** On a phone, a teacher marks a 40-student section in under a minute.
+
+---
+
+## Phase 5 — Fees & receipts
+
+Backend:
+- [ ] Fee heads CRUD; fee plan = installments per class per year (head, name, amount, due date)
+- [ ] "Copy plan from previous year"
+- [ ] Generate `student_fee_due` rows for all enrolled students of a class (idempotent) and on new enrollment
+- [ ] Concessions per due row (amount + reason)
+- [ ] Collect payment: choose dues, amounts (partial allowed), mode, reference → receipt
+  - single transaction; `receipt_counter` row locked `FOR UPDATE`; receipt no `PREFIX/YY-YY/000123`
+  - update `paid_amount`; never exceed net due
+- [ ] Cancel receipt (PRINCIPAL/ACCOUNTANT, reason required) → reverses `paid_amount`, audit logged
+- [ ] Receipt PDF (school logo, details, amount in words in Indian format)
+- [ ] Reports: day collection by mode, dues list (class/section, overdue only), student ledger, collection vs. expected per class
+
+Frontend:
+- [ ] Fee setup pages (heads, plan per class)
+- [ ] Collect fee screen: search student → outstanding dues → pay → print/download receipt
+- [ ] Student profile → Fees tab (ledger)
+- [ ] Reports pages with CSV export
+
+Tests:
+- [ ] Concurrent receipt creation yields unique gap-free numbers
+- [ ] Overpayment rejected; cancel restores dues; isolation
+
+**Acceptance:** Collect a partial payment, print the receipt, cancel it, and see the dues report update correctly.
+
+---
+
+## Phase 6 — Exams, marks & report cards
+
+Backend:
+- [ ] Grading scales + bands CRUD; seed two presets: "TS state CCE" and "CBSE 9-point"
+- [ ] Exams per year (name, order, weightage, grading scale)
+- [ ] Exam subjects per class (max marks, pass marks, date); "apply to all classes" helper
+- [ ] Marks entry per section + exam subject (bulk upsert, absent flag); teachers only for their assigned subject+section
+- [ ] Publish/unpublish exam (locks marks entry when published)
+- [ ] Result computation service: per subject %, grade from band, totals, overall %/grade, weighted final result across exams, pass/fail
+- [ ] Report card PDF per student and bulk per section (one PDF), using a per-school HTML template
+
+Frontend:
+- [ ] Exam setup pages
+- [ ] Marks entry grid (students × one subject), keyboard-friendly, works on phone
+- [ ] Section result sheet (students × subjects) with export
+- [ ] Report card preview + download; student profile → Marks tab
+
+Tests:
+- [ ] Grade calculation edge cases (boundaries, absent, weightage)
+- [ ] Teacher restriction; published exam is locked; isolation
+
+**Acceptance:** Set up FA1 for Class 5, enter marks for a section, publish, download all report cards as one PDF.
+
+---
+
+## Phase 7 — Certificates
+
+Backend:
+- [ ] Default templates per school for BONAFIDE and TC (seeded, editable HTML with placeholders `{{student.fullName}}`, `{{school.name}}`, etc.)
+- [ ] Issue certificate: serial number per school+type, snapshot data into `issued_certificate.data`, generate PDF
+- [ ] Issuing a TC sets student status `TC_ISSUED`
+- [ ] Re-download previously issued certificates
+
+Frontend:
+- [ ] Issue certificate dialog from student profile (type, purpose, preview)
+- [ ] Certificates register (list, filter, re-download)
+- [ ] Template editor (textarea + live preview is enough for MVP)
+
+**Acceptance:** Issue a bonafide and a TC; both PDFs carry the school's own logo and numbering.
+
+---
+
+## Phase 8 — School dashboard
+
+Backend:
+- [ ] `GET /api/v1/dashboard` (role-aware): total active students (by class), today's attendance %, sections not yet marked today, fee collected today / this month, total outstanding dues, top 5 overdue classes, upcoming exams, recent admissions
+- [ ] Single efficient query per widget; must load < 300 ms with demo data
+
+Frontend:
+- [ ] Dashboard with stat cards + 2–3 charts (Ant Design charts or Recharts)
+- [ ] TEACHER sees a simplified dashboard: their sections, attendance pending, marks pending
+
+**Acceptance:** Dashboard is the first screen after login and looks good on laptop and phone.
+
+---
+
+## Phase 9 — Demo data
+
+- [ ] `demo` profile seeder (separate from dev seed), idempotent, run via a CLI flag
+- [ ] 3 fictional schools with distinct logos/colors/settings:
+  1. State board, Telugu medium (TS CCE grading, FA1–4/SA1–2, Telugu/Hindi/English)
+  2. CBSE, English medium (9-point grading, Term 1/Term 2)
+  3. State board, English medium (different fee structure, transport fee head)
+- [ ] Each: current year, Nursery–Class 10, 2 sections each, ~300–500 students with realistic Telugu/Indian names, guardians, phone numbers (fake, e.g. 9xxxxxxxxx pattern)
+- [ ] 2 months of attendance history, fee payments with realistic partial dues, one published exam with marks, a few issued certificates
+- [ ] Logins per school: principal, admin, accountant, 2 teachers (documented in README; password from env)
+- [ ] **Only fake data. No real student information anywhere.**
+
+**Acceptance:** Fresh database + seeder → every screen in every school looks populated and realistic.
+
+---
+
+## Phase 10 — Production deployment
+
+- [ ] Backend multi-stage `Dockerfile` (build with Maven, run on JRE 21 slim, `-XX:MaxRAMPercentage=60`)
+- [ ] Frontend built to static files, served by Caddy
+- [ ] `docker-compose.prod.yml`: app, postgres (volume), caddy (auto HTTPS, `/api` → app, everything else → SPA with fallback to `index.html`)
+- [ ] Prod config from env; `FileStorage` R2 implementation
+- [ ] Nightly `pg_dump` → compressed → uploaded to R2, keep 14 days; documented restore steps (test a restore once)
+- [ ] Health check endpoint for uptime monitoring
+- [ ] Deployment script / Makefile: `make deploy` (pull, build, migrate, restart)
+- [ ] Gzip/Brotli + long cache headers for hashed frontend assets
+
+**Acceptance:** App runs at the real domain over HTTPS; a restore from backup works.
+
+---
+
+## Phase 11 — Demo polish
+
+- [ ] Loading skeletons, empty states, friendly error messages everywhere
+- [ ] Consistent page titles, breadcrumbs, Indian number/date formats
+- [ ] Test every demo flow on a ~₹15k Android phone over mobile data
+- [ ] Fix anything slower than 1 second
+- [ ] Write `DEMO.md`: the exact click path (login → dashboard → admission → attendance on phone → fee collection + receipt → report cards → TC → switch school to show a completely different setup)
+
+**Acceptance:** Full demo path runs end-to-end on production with no errors.
+
+---
+
+## Out of scope for the MVP (roadmap slide only)
+
+Parent/student app, SMS/WhatsApp notifications, online payment gateway, transport,
+library, hostel, payroll/HR, timetable, homework, multi-school group admin,
+self-service school onboarding UI.
