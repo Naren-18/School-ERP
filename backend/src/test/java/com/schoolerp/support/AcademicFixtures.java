@@ -1,6 +1,7 @@
 package com.schoolerp.support;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 
 import org.springframework.boot.test.context.TestComponent;
 
@@ -52,6 +53,24 @@ public class AcademicFixtures {
 
 	public Setup basicSetup(TestSchool school) {
 		Long yearId = year(school, "2026-27", true);
+		Long classId = schoolClass(school, "Class 5", 5);
+		Long sectionId = section(school, yearId, classId, "A", null);
+		Long subjectId = subject(school, "Mathematics");
+		mapSubject(school, yearId, classId, subjectId);
+		return new Setup(yearId, classId, sectionId, subjectId);
+	}
+
+	/** Like {@link #basicSetup} but the current year spans today (for date-sensitive tests such as attendance). */
+	public Setup todaySetup(TestSchool school) {
+		LocalDate today = LocalDate.now(ZoneId.of("Asia/Kolkata"));
+		Long yearId = tenants.inSchool(school, () -> {
+			AcademicYear y = new AcademicYear();
+			y.setName("Y" + today);
+			y.setStartDate(today.minusDays(120));
+			y.setEndDate(today.plusDays(200));
+			y.setCurrent(true);
+			return years.save(y).getId();
+		});
 		Long classId = schoolClass(school, "Class 5", 5);
 		Long sectionId = section(school, yearId, classId, "A", null);
 		Long subjectId = subject(school, "Mathematics");

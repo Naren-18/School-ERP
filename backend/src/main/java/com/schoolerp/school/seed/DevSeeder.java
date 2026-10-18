@@ -25,7 +25,8 @@ import com.schoolerp.tenant.TenantContext;
  * Idempotent: a school whose code already exists is skipped.
  */
 @Component
-@Profile("dev")
+// Never under prod, even if someone activates dev alongside it (ProductionSafetyCheck also refuses that).
+@Profile("dev & !prod")
 public class DevSeeder implements CommandLineRunner {
 
 	private static final Logger log = LoggerFactory.getLogger(DevSeeder.class);

@@ -212,7 +212,7 @@ public class StudentService {
 	}
 
 	/** Like {@link #require} but also applies the teacher's section scope (404 outside it). */
-	private Student requireVisible(Long id) {
+	public Student requireVisible(Long id) {
 		Student student = require(id);
 		Set<Long> allowed = access.restrictedSectionIds();
 		if (allowed != null && (allowed.isEmpty() || !enrollmentRepository

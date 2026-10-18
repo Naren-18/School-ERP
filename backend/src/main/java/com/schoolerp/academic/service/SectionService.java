@@ -42,6 +42,9 @@ public class SectionService {
 
 	private final StaffService staff;
 
+	/** Other modules' objections to deleting a section (e.g. students enrolled). */
+	private final List<SectionUsageCheck> usageChecks;
+
 	/** Sections of a year (the current year if none is given), ordered by class then name. */
 	@Transactional(readOnly = true)
 	public List<SectionDto.Response> list(Long academicYearId, Long classId) {
@@ -93,10 +96,16 @@ public class SectionService {
 		return get(id);
 	}
 
-	/** Sections with students enrolled are protected by the database (409 via the FK). */
 	@Transactional
 	public void delete(Long id) {
 		Section section = require(id);
+		SectionDto.Response described = toResponses(List.of(section)).getFirst();
+		String label = described.className() + " – " + described.name();
+		for (SectionUsageCheck check : usageChecks) {
+			check.blockingReason(section, label).ifPresent(reason -> {
+				throw new ConflictException(reason);
+			});
+		}
 		if (assignments.existsBySchoolIdAndSectionId(TenantContext.require(), id)) {
 			throw new ConflictException("This section has teacher assignments. Remove them first.");
 		}

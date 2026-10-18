@@ -13,6 +13,7 @@ import { useAuth } from '../../auth/useAuth'
 import { useFormErrors } from '../../components/useFormErrors'
 import { PRINCIPAL_ADMIN } from '../../layout/menu'
 import { API_DATE_FORMAT, DATE_FORMAT, formatDate } from '../../utils/format'
+import { StudentAttendanceTab } from '../attendance/StudentAttendanceTab'
 import { useYears } from '../settings/queries'
 import { CATEGORIES, ENROLLMENT_STATUS, GENDERS, RELATIONS, STUDENT_STATUS, labelOf } from './labels'
 import { SectionSelect } from './SectionSelect'
@@ -28,7 +29,7 @@ function ageOn(dob: string) {
 export function StudentProfilePage() {
   const id = Number(useParams().id)
   const navigate = useNavigate()
-  const { hasAnyRole } = useAuth()
+  const { hasAnyRole, me } = useAuth()
   const canManage = hasAnyRole(PRINCIPAL_ADMIN)
   const [dialog, setDialog] = useState<Dialog>(null)
   const { data: s, isLoading, error, refetch } = useQuery({
@@ -118,7 +119,10 @@ export function StudentProfilePage() {
           items={[
             { key: 'details', label: 'Details', children: <DetailsTab s={s} /> },
             { key: 'history', label: 'Class history', children: <HistoryTab enrollments={s.enrollments} /> },
-            ...['Attendance', 'Fees', 'Marks', 'Certificates'].map((label) => ({
+            ...(me?.school.modules.attendance
+              ? [{ key: 'attendance', label: 'Attendance', children: <StudentAttendanceTab studentId={s.id} /> }]
+              : []),
+            ...['Fees', 'Marks', 'Certificates'].map((label) => ({
               key: label.toLowerCase(),
               label,
               children: <Empty description={`${label} will appear here once the module is set up.`} />,

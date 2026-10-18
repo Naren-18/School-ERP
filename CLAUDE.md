@@ -134,6 +134,10 @@ Enforce with `@PreAuthorize` on controllers **and** ownership checks in services
   current phase's acceptance checks pass.
 - After each phase: run all tests, fix failures, update the checklist in PLAN.md,
   and commit with a message like `phase-3: students & enrollment`.
+- Every phase also updates the docs before it is considered done:
+  `ARCHITECTURE.md` (modules, API catalogue, data model in use, mechanisms,
+  decisions, known limitations, "what's next") and the **Status** table in
+  `README.md` (plus any new run/test/troubleshooting steps).
 - If a requirement is unclear or a rule here blocks you, stop and ask instead of guessing.
 - Prefer boring, readable code over clever code. No new libraries without a reason
   stated in the commit message.

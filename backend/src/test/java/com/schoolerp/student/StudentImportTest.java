@@ -94,6 +94,29 @@ class StudentImportTest extends StudentTestSupport {
 	}
 
 	@Test
+	void telanganaBcSubGroupsAndAliasesAreAccepted() throws Exception {
+		TestSchool school = fixtures.school("Category School");
+		academic.basicSetup(school);
+		String csv = "admission_no,admission_date,first_name,gender,date_of_birth,class,section,father_name,father_phone,"
+				+ "social_category\n"
+				+ "C1,10-06-2026,Anvesh,M,05-01-2016,Class 5,A,Raju,9876500101,BC-A\n"
+				+ "C2,10-06-2026,Bhargavi,F,05-01-2016,Class 5,A,Raju,9876500102,bc e\n"
+				+ "C3,10-06-2026,Charan,M,05-01-2016,Class 5,A,Raju,9876500103,OC\n"
+				+ "C4,10-06-2026,Deepika,F,05-01-2016,Class 5,A,Raju,9876500104,BC-F\n";
+		upload(school.principal(), csv, true)
+			.andExpect(jsonPath("$.validRows").value(3))
+			.andExpect(jsonPath("$.errors[0].row").value(5))
+			.andExpect(jsonPath("$.errors[0].field").value("social_category"));
+
+		upload(school.principal(), csv.substring(0, csv.lastIndexOf("C4,")), false)
+			.andExpect(jsonPath("$.created").value(3));
+		long id = idOf(getAs(school.principal(), "/api/v1/students?q=Anvesh"), "$.content[0].id");
+		getAs(school.principal(), "/api/v1/students/{id}", id).andExpect(jsonPath("$.socialCategory").value("BC_A"));
+		long oc = idOf(getAs(school.principal(), "/api/v1/students?q=Charan"), "$.content[0].id");
+		getAs(school.principal(), "/api/v1/students/{id}", oc).andExpect(jsonPath("$.socialCategory").value("GEN"));
+	}
+
+	@Test
 	void missingColumnsAndRoles() throws Exception {
 		TestSchool school = fixtures.school("Columns School");
 		academic.basicSetup(school);

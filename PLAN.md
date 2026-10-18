@@ -121,18 +121,18 @@ Tests:
 ## Phase 4 — Attendance
 
 Backend:
-- [ ] Mark attendance for a section and date (bulk upsert), default all Present
-- [ ] Teacher may only mark sections they are class teacher of (or assigned to); edits allowed same day for teachers, any day for ADMIN/PRINCIPAL
-- [ ] Block marking on holidays/week-off days
-- [ ] Reports: section daily sheet, student monthly summary, school-wide today % by class
+- [x] Mark attendance for a section and date (bulk upsert), default all Present
+- [x] Teacher may only mark sections they are class teacher of (or assigned to); edits allowed same day for teachers, any day for ADMIN/PRINCIPAL
+- [x] Block marking on holidays/week-off days
+- [x] Reports: section daily sheet, student monthly summary, school-wide today % by class
 
 Frontend:
-- [ ] **Mobile-first** marking screen: pick section → list with big P/A/L toggles → save
-- [ ] Monthly register view (students × days grid) with export to CSV
-- [ ] Student profile → Attendance tab with monthly calendar
+- [x] **Mobile-first** marking screen: pick section → list with big P/A/L toggles → save
+- [x] Monthly register view (students × days grid) with export to CSV
+- [x] Student profile → Attendance tab with monthly calendar
 
 Tests:
-- [ ] Isolation; teacher cannot mark other sections; holiday blocked
+- [x] Isolation; teacher cannot mark other sections; holiday blocked
 
 **Acceptance:** On a phone, a teacher marks a 40-student section in under a minute.
 

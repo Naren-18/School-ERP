@@ -150,7 +150,15 @@ public class StudentImportService {
 		if (aadhaar != null && !Aadhaar.isValid(Aadhaar.normalize(aadhaar))) {
 			r.error("aadhaar", "Not a valid Aadhaar number");
 		}
-		Student.SocialCategory category = r.enumValue("social_category", Student.SocialCategory.class);
+		Student.SocialCategory category = null;
+		String rawCategory = r.optional("social_category");
+		if (rawCategory != null) {
+			category = Student.SocialCategory.parse(rawCategory).orElse(null);
+			if (category == null) {
+				r.error("social_category", "Unknown category \"" + rawCategory
+						+ "\". Use GEN/OC, OBC, BC, BC-A to BC-E, SC, ST or OTHER");
+			}
+		}
 
 		if (r.hasErrors()) {
 			return Optional.empty();
@@ -303,20 +311,6 @@ public class StudentImportService {
 					yield null;
 				}
 			};
-		}
-
-		<E extends Enum<E>> E enumValue(String column, Class<E> type) {
-			String v = optional(column);
-			if (v == null) {
-				return null;
-			}
-			try {
-				return Enum.valueOf(type, v.toUpperCase(Locale.ROOT));
-			}
-			catch (IllegalArgumentException ex) {
-				error(column, "Unknown value \"" + v + "\"");
-				return null;
-			}
 		}
 
 		Optional<StudentDto.GuardianInput> guardian(Guardian.Relation relation, String nameColumn, String phoneColumn) {

@@ -1,6 +1,6 @@
 # Architecture
 
-How the School ERP is built, as of the end of **Phase 3** (students and enrollment).
+How the School ERP is built, as of the end of **Phase 4** (attendance).
 For the rules that every change must follow, see [`CLAUDE.md`](CLAUDE.md); for the phase
 plan, see [`PLAN.md`](PLAN.md); for running it, see [`README.md`](README.md).
 
@@ -60,12 +60,13 @@ Package root `com.schoolerp`. Each module has `controller/ service/ repository/ 
 | `common` | `BaseEntity`, `TenantEntity`; errors (`ApiException`, `NotFoundException` 404, `ConflictException` 409, `BadRequestException` 400, `GlobalExceptionHandler`); `PageResponse`; `crypto` (AES-GCM `FieldCipher`, `EncryptedStringConverter`, Aadhaar Verhoeff check); `csv` (RFC 4180 reader/writer) |
 | `tenant` | `TenantContext` (ThreadLocal school id), `TenantIdResolver` (feeds the Hibernate filter), `TenantGuard` (404 unless the entity is this school's) |
 | `auth` | Users and roles, login, JWT, per-request session check, rate limiting, user management, staff picker, `Access` role expressions, security config |
-| `school` | School profile, typed settings (JSONB), logo upload, public branding, module toggles (`@RequiresModule` + `ModuleGuard`), dev seeder |
-| `academic` | Academic years, classes, sections, subjects, class–subject mapping, teacher assignments, holidays, teacher scope |
+| `school` | School profile, typed settings (JSONB), logo upload, public branding, module toggles (`@RequiresModule` + `ModuleGuard`), dev seeder and `ProductionSafetyCheck` |
+| `academic` | Academic years, classes, sections, subjects, class–subject mapping, teacher assignments, holidays, teacher scope, `SectionUsageCheck` (other modules veto section deletion) |
 | `student` | Students, guardians, enrollments, search, photos, leaving, promotion, roll numbers, CSV import, `StudentEnrolledEvent` |
 | `audit` | `AuditService` writing `audit_log` |
 | `files` | `FileStorage` interface, `LocalFileStorage`, `ImageTypes` (detects image type from content) |
-| `attendance`, `fee`, `exam`, `certificate`, `dashboard` | Empty, filled in by Phases 4–8 |
+| `attendance` | Marking a section for a day (bulk upsert), access and date rules, monthly register (+ CSV), student month, school-wide day summary; behind `@RequiresModule(ATTENDANCE)` |
+| `fee`, `exam`, `certificate`, `dashboard` | Empty, filled in by Phases 5–8 |
 
 ## 4. Tenant isolation (the most important design)
 
@@ -174,6 +175,7 @@ checks the schema and never alters it. Tables in use so far:
 | `student` | `Student` | Aadhaar is encrypted (`bytea`); `aadhaar_last4` kept separately; `photo_url` holds the storage key |
 | `guardian` | `Guardian` | 1–4 per student; one primary |
 | `enrollment` | `Enrollment` | One per student per year; `ACTIVE / PROMOTED / DETAINED / LEFT` |
+| `attendance` | `Attendance` | One row per enrollment per date; status `P/A/L/H` (`bpchar(1)`); `marked_by`, `marked_at` |
 
 Foreign keys are mapped as plain `Long` ids, not JPA associations. Services batch-load
 related rows into maps. This keeps every query explicit and tenant-scoped, and avoids
@@ -219,6 +221,29 @@ timestamps `OffsetDateTime`. The JVM and JSON time zone is `Asia/Kolkata`.
   with field names. The real import runs in one transaction through the same
   admission service: all rows or none. Up to 2,000 rows / 2 MB, UTF-8 with or without
   BOM.
+- **Attendance:**
+  - **Saving:** one section for one day at a time, bulk upsert. The save must list
+    every student on that day's roster, otherwise 400 "class list has changed", so
+    nobody is silently skipped. Unchanged marks are not rewritten, which keeps
+    `marked_by` honest.
+  - **Roster for a date:** enrollments of the section with
+    `joined_on <= date <= left_on` (or not left). Students who joined later or left
+    earlier drop out of that day.
+  - **Blocked days**, checked in `AttendanceService.blockedReason`:
+    - outside the section's year, or a future date: 400
+    - a holiday or weekly off day, via `SchoolCalendarService` (holidays plus
+      settings): 409
+    - for teachers, any day but today: 403
+
+    The sheet shows the same reason read-only.
+  - **Who:** `AttendanceAccess` gives principal/admin every section; teachers get
+    `TeacherScopeService` sections, with 404 outside them; accountants are refused
+    by role.
+  - **Percentage** = (P + ½H) ÷ days marked, one decimal; null when nothing is
+    marked.
+  - **Summary:** the school-wide day summary is one SQL query per day
+    (`AttendanceReportRepository`). Sections with nobody enrolled that day are not
+    counted as "to mark".
 - **Events:** `StudentEnrolledEvent` is published on every new enrollment (admission,
   promotion, enrolling later). Phase 5 will listen to it to create fee dues.
 - **Audit:** `AuditService.log(action, entity, id, details)`. Logged so far:
@@ -248,6 +273,8 @@ Public: `POST /auth/login`, `GET /public/schools/{code}/branding`, `GET /public/
 | Students | `GET /students?q&academicYearId&classId&sectionId&status&page&size` · `GET /{id}` · `GET /next-admission-no` · `POST` · `PUT /{id}` · `POST /{id}/leave` · `POST /{id}/enrollments` · `POST /{id}/photo` · `GET /{id}/photo` | read: any (teachers scoped); write: principal/admin |
 | Import | `GET /students/import/template` · `POST /students/import?dryRun` | principal/admin |
 | Enrollment | `GET /sections/{id}/students?includeInactive` · `POST /sections/{id}/renumber` · `PUT /enrollments/{id}/section` · `POST /promotions` | read: any (teachers scoped); write: principal/admin |
+| Attendance | `GET /attendance/sections?date` · `GET /attendance/sections/{id}?date` · `PUT /attendance/sections/{id}?date` · `GET /attendance/sections/{id}/register?month=yyyy-MM` · `GET …/register.csv?month` | principal/admin/teacher (teachers: own sections, today only for changes) |
+| Attendance reports | `GET /attendance/students/{id}?month` · `GET /attendance/today?date` | student month: any staff who may see the student; today: principal/admin |
 
 Conventions:
 - Requests and responses are Java `record` DTOs; entities are never exposed.
@@ -291,6 +318,7 @@ src/
   - `/` (dashboard)
   - `/students`, `/students/new`, `/students/:id`, `/students/:id/edit`,
     `/students/promotion`, `/students/import`
+  - `/attendance` (`?section=&date=`), `/attendance/register`, `/attendance/today`
   - `/settings/{school,preferences,years,classes,subjects,class-subjects,assignments,holidays,users}`
 
   Every route has a role guard that matches its API.
@@ -318,7 +346,7 @@ Other settings:
 
 ## 12. Testing strategy
 
-- **76 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
+- **90 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
   Testcontainers. One Spring context is shared, plus one extra for the module-guard
   probe.
 - **`IntegrationTest`** base class: MockMvc, request helpers (`getAs`, `postAs`,
@@ -335,6 +363,10 @@ Other settings:
   - admission, Aadhaar encryption at rest, masking per role
   - teacher scope, search, section change, leaving, promotion and detention
   - CSV import, including rollback
+  - attendance: marking and correcting, whole-class rule, holiday, off-day,
+    future and other-year blocks, teacher scope and today-only, accountant refused,
+    register, CSV, student month, day summary, module off, School A vs B
+  - production safety check (dev seed password and profile)
   - unit tests for Verhoeff, AES-GCM and CSV
 - **Frontend:** `tsc` and `oxlint` must be clean. Flows were checked by hand in the
   browser at the end of each phase.
@@ -354,11 +386,32 @@ Other settings:
 | CSV import all-or-nothing | No half-imported files to clean up |
 | Social category includes `OBC` (column comment listed GEN/BC/SC/ST/OTHER) | CBSE schools use OBC; no DB constraint is affected |
 | Admission form ignores empty contact rows | The default Mother row must not block saving when only one parent is known |
+| `DevSeeder` is `@Profile("dev & !prod")`; `ProductionSafetyCheck` stops a prod start if `DEV_SEED_PASSWORD` is set or `dev` is also active | `dev` is the default profile, so a misconfigured server must fail loudly rather than seed demo logins |
+| Social category has `BC_A`..`BC_E` (shown BC-A..BC-E) alongside `BC`; CSV accepts "BC-A", "bc a", and "OC" as General | Telangana and AP schools record BC sub-groups; other states use plain BC |
+| Section delete asks other modules through `SectionUsageCheck` (students: "N students are enrolled in Class 5 – A …") | A clear message without the academic module depending on the student module |
+| Attendance saves the whole section at once and rejects partial lists | The screen defaults everyone to Present; a partial save would leave students silently unmarked |
+| Teachers change only today; principal/admin correct past days | Matches the plan, and keeps the register trustworthy after the day ends |
+| The day summary counts only sections that had students that day | An empty or not-yet-started section is not "pending" |
+| Sidebar menu is not mounted while the mobile drawer is closed | Inside a collapsed `Sider`, antd turns the inline menu into popups that opened over the page |
 
 ## 14. Known limitations / technical debt
 
 - Login rate limiting is in memory, so it would need a shared store to run more than
   one instance.
+- **Login lockout can be abused.** The limit is per school code + username, not per
+  client. Anyone who knows a school code and a username (say, `principal`) can make
+  10 wrong attempts and lock that real user out for 15 minutes, again and again. It
+  is acceptable for the demo. Before real schools rely on it, add per-IP limits
+  (Caddy or the app), a CAPTCHA after a few failures, and alerting on repeated
+  lockouts.
+- **The encryption key must be backed up separately.** Aadhaar numbers are encrypted
+  with `APP_ENCRYPTION_KEY`; without that exact key they cannot be recovered.
+  Database backups alone are therefore not enough.
+  - Store the key in a password manager or secret store, apart from the database
+    backups, so one leak doesn't expose both.
+  - Restore tests must include it.
+  - There is no key rotation yet: one key, and no key id in the ciphertext.
+    Rotating would need a migration that re-encrypts every row.
 - No refresh tokens; users sign in again after 12 hours.
 - `FileStorage` has only the local implementation. R2 arrives in Phase 10, along with
   backups and HTTPS.
@@ -366,18 +419,28 @@ Other settings:
   request per row.
 - The admission form has a photo upload but no other documents (birth certificate,
   previous TC) yet.
-- A section with enrolled students can't be deleted. The database refuses it, and the
-  user sees a generic 409.
 - The IDE's Java extension writes into `backend/target/classes` without Lombok
   support, which can break test runs. `./mvnw clean test` fixes it.
 
+- **Attendance history follows the enrollment.** A section change moves the student's
+  existing enrollment, so their earlier marks this year appear under the new
+  section's register. A per-section history would need a separate placement history.
+- **Attendance changes are not in the audit log.** Only the latest change is kept,
+  via `marked_by` and `marked_at`; earlier values are overwritten.
+- **Late holidays don't clear marks.** Declaring a holiday on a day that already has
+  attendance doesn't remove those marks, so they still count in totals.
+
 ## 15. What's next
 
-Phase 4 is **attendance**:
-- mobile-first marking per section and date
-- teachers limited to their sections and same-day edits
-- marking blocked on holidays and weekly off days
-- daily, monthly and school-wide reports
+Phase 5 is **fees and receipts**:
+- fee heads and per-class installment plans (copy from last year)
+- dues per student, generated by listening to `StudentEnrolledEvent`, which is
+  already published on every enrollment
+- concessions
+- collecting payments into gap-free receipt numbers (`PREFIX/YY-YY/000123`,
+  using the receipt prefix from school settings)
+- receipt PDFs and cancellation
+- collection and dues reports
 
-It will reuse `SectionStudent`, `TeacherScopeService`, the holidays and the weekly
-off days already in place. Phases 5–11 follow the order in `PLAN.md`.
+It will also be the first module with money (`NUMERIC(10,2)` ↔ `BigDecimal`), and
+it sits behind `@RequiresModule(FEES)`. Phases 6–11 follow the order in `PLAN.md`.

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import type { Role } from './api/auth'
-import { RequireAuth, RequireRole } from './auth/guards'
+import { RequireAuth, RequireModule, RequireRole } from './auth/guards'
 import { LoginPage } from './features/auth/LoginPage'
 import { DashboardPage } from './features/dashboard/DashboardPage'
 import { AcademicYearsPage } from './features/settings/AcademicYearsPage'
@@ -18,9 +18,12 @@ import { StudentFormPage } from './features/students/StudentFormPage'
 import { StudentImportPage } from './features/students/StudentImportPage'
 import { StudentListPage } from './features/students/StudentListPage'
 import { StudentProfilePage } from './features/students/StudentProfilePage'
+import { MarkAttendancePage } from './features/attendance/MarkAttendancePage'
+import { RegisterPage } from './features/attendance/RegisterPage'
+import { TodayPage } from './features/attendance/TodayPage'
 import { AppShell } from './layout/AppShell'
 import { BrandTheme } from './layout/BrandTheme'
-import { PRINCIPAL, PRINCIPAL_ADMIN } from './layout/menu'
+import { PRINCIPAL, PRINCIPAL_ADMIN, TEACHING } from './layout/menu'
 
 const only = (roles: readonly Role[], page: ReactNode) => <RequireRole roles={roles}>{page}</RequireRole>
 
@@ -44,6 +47,18 @@ export default function App() {
             <Route path="promotion" element={only(PRINCIPAL_ADMIN, <PromotionPage />)} />
             <Route path=":id" element={<StudentProfilePage />} />
             <Route path=":id/edit" element={only(PRINCIPAL_ADMIN, <StudentFormPage key="edit" />)} />
+          </Route>
+          <Route
+            path="attendance"
+            element={
+              <RequireModule module="attendance">
+                <Outlet />
+              </RequireModule>
+            }
+          >
+            <Route index element={only(TEACHING, <MarkAttendancePage />)} />
+            <Route path="register" element={only(TEACHING, <RegisterPage />)} />
+            <Route path="today" element={only(PRINCIPAL_ADMIN, <TodayPage />)} />
           </Route>
           <Route path="settings">
             <Route index element={<Navigate to="years" replace />} />

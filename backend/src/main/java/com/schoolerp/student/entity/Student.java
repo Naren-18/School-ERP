@@ -2,6 +2,9 @@ package com.schoolerp.student.entity;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Optional;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -29,7 +32,30 @@ public class Student extends TenantEntity {
 
 	public enum Status { ACTIVE, LEFT, TC_ISSUED, PASSED_OUT }
 
-	public enum SocialCategory { GEN, OBC, BC, SC, ST, OTHER }
+	/**
+	 * Reservation category. BC_A..BC_E are the Telangana/Andhra BC groups; BC is
+	 * for states without sub-groups. Stored as the enum name (fits VARCHAR(10)).
+	 */
+	public enum SocialCategory {
+
+		GEN, OBC, BC, BC_A, BC_B, BC_C, BC_D, BC_E, SC, ST, OTHER;
+
+		/**
+		 * Lenient parse for imports: "BC-A", "bc a", "BC_A" are all BC_A; "OC"
+		 * (open category) and "General" are GEN. Empty for anything unknown.
+		 */
+		public static Optional<SocialCategory> parse(String raw) {
+			if (raw == null || raw.isBlank()) {
+				return Optional.empty();
+			}
+			String key = raw.trim().toUpperCase(Locale.ROOT).replaceAll("[\\s-]+", "_");
+			return switch (key) {
+				case "OC", "GENERAL", "OPEN" -> Optional.of(GEN);
+				default -> Arrays.stream(values()).filter(c -> c.name().equals(key)).findFirst();
+			};
+		}
+
+	}
 
 	@Column(name = "admission_no", nullable = false, length = 30)
 	private String admissionNo;

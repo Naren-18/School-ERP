@@ -1,5 +1,6 @@
 package com.schoolerp.support;
 
+import java.time.DayOfWeek;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.UUID;
@@ -14,6 +15,7 @@ import com.schoolerp.auth.entity.Role;
 import com.schoolerp.auth.repository.AppUserRepository;
 import com.schoolerp.auth.service.JwtService;
 import com.schoolerp.school.entity.School;
+import com.schoolerp.school.entity.SchoolSettings;
 import com.schoolerp.school.repository.SchoolRepository;
 import com.schoolerp.tenant.TenantContext;
 
@@ -105,6 +107,23 @@ public class TenantFixtures {
 			work.run();
 			return null;
 		});
+	}
+
+	/** Sets the school's weekly off days (empty = every day is a school day, handy for date tests). */
+	public void setWeekOffDays(TestSchool school, DayOfWeek... days) {
+		School entity = schools.findById(school.id()).orElseThrow();
+		SchoolSettings s = entity.getSettings();
+		entity.setSettings(new SchoolSettings(s.receiptPrefix(), s.certificatePrefix(), List.of(days), s.modules(),
+				s.reportCard()));
+		schools.save(entity);
+	}
+
+	public void setModules(TestSchool school, SchoolSettings.Modules modules) {
+		School entity = schools.findById(school.id()).orElseThrow();
+		SchoolSettings s = entity.getSettings();
+		entity.setSettings(new SchoolSettings(s.receiptPrefix(), s.certificatePrefix(), s.weekOffDays(), modules,
+				s.reportCard()));
+		schools.save(entity);
 	}
 
 	public void setSchoolActive(TestSchool school, boolean active) {

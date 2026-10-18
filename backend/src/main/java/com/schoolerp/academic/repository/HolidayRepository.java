@@ -16,6 +16,8 @@ public interface HolidayRepository extends JpaRepository<Holiday, Long> {
 
 	List<Holiday> findBySchoolIdAndAcademicYearIdOrderByDateAsc(Long schoolId, Long academicYearId);
 
+	List<Holiday> findBySchoolIdAndDateBetween(Long schoolId, LocalDate from, LocalDate to);
+
 	boolean existsBySchoolIdAndDate(Long schoolId, LocalDate date);
 
 	boolean existsBySchoolIdAndDateAndIdNot(Long schoolId, LocalDate date, Long id);

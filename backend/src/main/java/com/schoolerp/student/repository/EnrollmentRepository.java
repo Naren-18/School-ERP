@@ -1,5 +1,6 @@
 package com.schoolerp.student.repository;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -35,7 +36,29 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
 
 	boolean existsBySchoolIdAndSectionId(Long schoolId, Long sectionId);
 
+	long countBySchoolIdAndSectionId(Long schoolId, Long sectionId);
+
+	long countBySchoolIdAndSectionIdAndStatus(Long schoolId, Long sectionId, Enrollment.Status status);
+
 	boolean existsBySchoolIdAndStudentIdAndSectionIdIn(Long schoolId, Long studentId, Collection<Long> sectionIds);
+
+	/** Enrollments of a section that overlap [from, to]: joined by {@code to}, not left before {@code from}. */
+	@Query("""
+			SELECT e FROM Enrollment e
+			WHERE e.schoolId = :schoolId AND e.sectionId = :sectionId
+			  AND e.joinedOn <= :to AND (e.leftOn IS NULL OR e.leftOn >= :from)
+			""")
+	List<Enrollment> findInSectionDuring(@Param("schoolId") Long schoolId, @Param("sectionId") Long sectionId,
+			@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+	/** A student's enrollments that overlap [from, to]. */
+	@Query("""
+			SELECT e FROM Enrollment e
+			WHERE e.schoolId = :schoolId AND e.studentId = :studentId
+			  AND e.joinedOn <= :to AND (e.leftOn IS NULL OR e.leftOn >= :from)
+			""")
+	List<Enrollment> findForStudentDuring(@Param("schoolId") Long schoolId, @Param("studentId") Long studentId,
+			@Param("from") LocalDate from, @Param("to") LocalDate to);
 
 	@Query("""
 			SELECT coalesce(max(e.rollNo), 0) FROM Enrollment e

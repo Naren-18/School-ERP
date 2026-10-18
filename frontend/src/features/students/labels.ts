@@ -13,9 +13,15 @@ export const RELATIONS: { value: Relation; label: string }[] = [
 ]
 
 export const CATEGORIES: { value: SocialCategory; label: string }[] = [
-  { value: 'GEN', label: 'General' },
+  { value: 'GEN', label: 'General / OC' },
   { value: 'OBC', label: 'OBC' },
   { value: 'BC', label: 'BC' },
+  // Telangana / Andhra Pradesh BC groups
+  { value: 'BC_A', label: 'BC-A' },
+  { value: 'BC_B', label: 'BC-B' },
+  { value: 'BC_C', label: 'BC-C' },
+  { value: 'BC_D', label: 'BC-D' },
+  { value: 'BC_E', label: 'BC-E' },
   { value: 'SC', label: 'SC' },
   { value: 'ST', label: 'ST' },
   { value: 'OTHER', label: 'Other' },

@@ -3,7 +3,8 @@ import type { Page } from './users'
 
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER'
 export type StudentStatus = 'ACTIVE' | 'LEFT' | 'TC_ISSUED' | 'PASSED_OUT'
-export type SocialCategory = 'GEN' | 'OBC' | 'BC' | 'SC' | 'ST' | 'OTHER'
+export type SocialCategory =
+  | 'GEN' | 'OBC' | 'BC' | 'BC_A' | 'BC_B' | 'BC_C' | 'BC_D' | 'BC_E' | 'SC' | 'ST' | 'OTHER'
 export type Relation = 'FATHER' | 'MOTHER' | 'GUARDIAN'
 export type EnrollmentStatus = 'ACTIVE' | 'PROMOTED' | 'DETAINED' | 'LEFT'
 

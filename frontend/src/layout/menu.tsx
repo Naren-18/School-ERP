@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import {
-  BankOutlined, BookOutlined, CalendarOutlined, ClusterOutlined, ControlOutlined, DashboardOutlined,
+  BankOutlined, BookOutlined, CalendarOutlined, CarryOutOutlined, CheckSquareOutlined, ClusterOutlined, ControlOutlined, DashboardOutlined,
   ReadOutlined, RiseOutlined, ScheduleOutlined, SettingOutlined, SolutionOutlined, TeamOutlined, UnorderedListOutlined,
-  UploadOutlined, UserAddOutlined,
+  UploadOutlined, UserAddOutlined, TableOutlined, PieChartOutlined,
 } from '@ant-design/icons'
 import type { Role } from '../api/auth'
 import type { Modules } from '../api/school'
@@ -20,6 +20,7 @@ export interface MenuEntry {
 export const ALL_ROLES: readonly Role[] = ['PRINCIPAL', 'ADMIN', 'ACCOUNTANT', 'TEACHER']
 export const PRINCIPAL: readonly Role[] = ['PRINCIPAL']
 export const PRINCIPAL_ADMIN: readonly Role[] = ['PRINCIPAL', 'ADMIN']
+export const TEACHING: readonly Role[] = ['PRINCIPAL', 'ADMIN', 'TEACHER']
 
 /** Sidebar entries; each is shown only to the listed roles. Later phases add modules here. */
 export const MENU: readonly MenuEntry[] = [
@@ -34,6 +35,18 @@ export const MENU: readonly MenuEntry[] = [
       { path: '/students/new', label: 'Admit student', icon: <UserAddOutlined />, roles: PRINCIPAL_ADMIN },
       { path: '/students/promotion', label: 'Promotion', icon: <RiseOutlined />, roles: PRINCIPAL_ADMIN },
       { path: '/students/import', label: 'Import CSV', icon: <UploadOutlined />, roles: PRINCIPAL_ADMIN },
+    ],
+  },
+  {
+    path: '/attendance',
+    label: 'Attendance',
+    icon: <CarryOutOutlined />,
+    roles: TEACHING,
+    module: 'attendance',
+    children: [
+      { path: '/attendance', label: 'Mark attendance', icon: <CheckSquareOutlined />, roles: TEACHING },
+      { path: '/attendance/register', label: 'Monthly register', icon: <TableOutlined />, roles: TEACHING },
+      { path: '/attendance/today', label: 'Summary', icon: <PieChartOutlined />, roles: PRINCIPAL_ADMIN },
     ],
   },
   {

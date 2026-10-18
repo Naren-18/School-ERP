@@ -97,6 +97,32 @@ class EnrollmentTest extends StudentTestSupport {
 	}
 
 	@Test
+	void deletingASectionWithStudentsSaysHowMany() throws Exception {
+		TestSchool school = fixtures.school("Delete Section School");
+		Setup setup = academic.basicSetup(school);
+		TestUser p = school.principal();
+		long a = admitOk(p, "D-1", "Asha", setup.sectionId());
+		admitOk(p, "D-2", "Bala", setup.sectionId());
+
+		deleteAs(p, "/api/v1/sections/{id}", setup.sectionId())
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.detail")
+				.value("2 students are enrolled in Class 5 – A. Move them to another section before deleting it."));
+
+		// Only history left: still blocked, with a different explanation.
+		Long sectionB = academic.section(school, setup.yearId(), setup.classId(), "B", null);
+		long b = idOf(getAs(p, "/api/v1/students?q=Bala"), "$.content[0].id");
+		putAs(p, "/api/v1/enrollments/{id}/section", """
+				{"sectionId":%d}""".formatted(sectionB), enrollmentId(p, b)).andExpect(status().isOk());
+		postAs(p, "/api/v1/students/{id}/leave", """
+				{"leftOn":"2026-09-30","reason":"Moved"}""", a).andExpect(status().isOk());
+		deleteAs(p, "/api/v1/sections/{id}", setup.sectionId())
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.detail")
+				.value("Class 5 – A has class records for 1 student (promoted, detained or left), so it cannot be deleted."));
+	}
+
+	@Test
 	void promotionRules() throws Exception {
 		TestSchool school = fixtures.school("Promotion Rules School");
 		Setup setup = academic.basicSetup(school);

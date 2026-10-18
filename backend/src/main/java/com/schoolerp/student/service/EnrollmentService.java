@@ -137,6 +137,30 @@ public class EnrollmentService {
 			.toList();
 	}
 
+	/**
+	 * Who was in the section at some point in [from, to], by roll number. For
+	 * attendance; callers apply their own access rules.
+	 */
+	@Transactional(readOnly = true)
+	public List<StudentDto.SectionStudent> rosterDuring(Long sectionId, LocalDate from, LocalDate to) {
+		List<Enrollment> list = enrollments.findInSectionDuring(TenantContext.require(), sectionId, from, to);
+		Map<Long, Student> byId = studentsById(list);
+		return list.stream().map(e -> {
+			Student s = byId.get(e.getStudentId());
+			return new StudentDto.SectionStudent(e.getId(), s.getId(), s.getAdmissionNo(), s.getFullName(),
+					s.getGender(), e.getRollNo(), e.getStatus(), s.getPhotoKey() != null);
+		})
+			.sorted(Comparator.comparing(StudentDto.SectionStudent::rollNo, Comparator.nullsLast(Comparator.naturalOrder()))
+				.thenComparing(StudentDto.SectionStudent::fullName, String.CASE_INSENSITIVE_ORDER))
+			.toList();
+	}
+
+	/** A student's enrollments that overlap [from, to]. */
+	@Transactional(readOnly = true)
+	public List<Enrollment> studentEnrollmentsDuring(Long studentId, LocalDate from, LocalDate to) {
+		return enrollments.findForStudentDuring(TenantContext.require(), studentId, from, to);
+	}
+
 	/** Re-assigns roll numbers 1..n in alphabetical order of name. */
 	@Transactional
 	public List<StudentDto.SectionStudent> renumber(Long sectionId) {

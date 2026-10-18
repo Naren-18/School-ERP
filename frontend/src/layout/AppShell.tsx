@@ -73,17 +73,21 @@ export function AppShell() {
             {me.school.name}
           </Typography.Text>
         </Flex>
-        <Menu
-          mode="inline"
-          items={items}
-          selectedKeys={selected}
-          defaultOpenKeys={openGroups}
-          style={{ borderInlineEnd: 'none' }}
-          onClick={({ key }) => {
-            navigate(key)
-            setCollapsed(true)
-          }}
-        />
+        {/* Not mounted while the mobile drawer is closed: inside a collapsed Sider, antd turns
+            an inline menu into popups and would pop the open group over the page. */}
+        {(!isMobile || !collapsed) && (
+          <Menu
+            mode="inline"
+            items={items}
+            selectedKeys={selected}
+            defaultOpenKeys={openGroups}
+            style={{ borderInlineEnd: 'none' }}
+            onClick={({ key }) => {
+              navigate(key)
+              setCollapsed(true)
+            }}
+          />
+        )}
       </Layout.Sider>
       {isMobile && !collapsed && (
         <div

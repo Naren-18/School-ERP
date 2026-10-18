@@ -15,8 +15,9 @@ share one deployment; each school is fully isolated, with its own logins and dat
 | 1 | Tenancy, login, errors, audit | Done |
 | 2 | School settings and academic setup | Done |
 | 3 | Students, guardians, enrollment, promotion, CSV import | Done |
-| 4 | Attendance | Next |
-| 5–11 | Fees, exams, certificates, dashboard, demo data, deployment, polish | Not started |
+| 4 | Attendance: mobile marking, monthly register, school summary | Done |
+| 5 | Fees and receipts | Next |
+| 6–11 | Exams, certificates, dashboard, demo data, deployment, polish | Not started |
 
 ## Run locally
 
@@ -55,6 +56,9 @@ The sidebar shows only what your role allows.
 | Students: list, search, profile | all | all | all, read-only | only sections they teach |
 | Admit / edit / promote / import students | ✔ | ✔ | — | — |
 | Caste, religion, category, Aadhaar | ✔ | ✔ | hidden | hidden |
+| Mark attendance | any section, any past school day | any section, any past school day | — | own sections, today only |
+| Monthly register, CSV export | all sections | all sections | — | own sections |
+| Attendance summary (school-wide) | ✔ | ✔ | — | — |
 | Setup: years, classes, sections, subjects, class subjects, teacher assignments, holidays | ✔ | ✔ | — | — |
 | Setup: school profile and logo, modules and preferences, users | ✔ | — | — | — |
 
@@ -84,12 +88,33 @@ The dashboard checklist walks through these:
 - **Import CSV:** download the template, fill it (dates `DD-MM-YYYY`), upload. The file
   is checked first; nothing is saved unless every row is valid.
 
+### Attendance
+
+Switch it on or off under **Setup → Modules & preferences**; when off, it disappears
+from the menu and its pages and APIs answer "not found".
+
+- **Mark attendance:** pick a section (a ✓ means already marked). Everyone starts as
+  **P**; tap **A** (absent) or **L** (leave) for the few who aren't present, then
+  **Save**. Made for phones: big buttons, and the Save bar stays at the bottom.
+- **Rules:**
+  - Holidays, weekly off days (set in preferences), future dates and dates outside
+    the academic year can't be marked; the page says why.
+  - Teachers mark only today, for sections they class-teach or teach a subject in.
+  - Principal and admin can open any past school day (date picker, or `?date=` in
+    the URL) and correct it.
+- **Monthly register:** students × days for a month with totals and percentage;
+  **Export CSV**.
+- **Summary** (principal/admin): the day's attendance %, absent and on-leave counts,
+  per class, and a list of sections not marked yet.
+- **Student profile → Attendance:** a month calendar with that student's marks.
+- **Percentage** = (present + ½ half-days) ÷ days marked.
+
 ## Testing
 
 ### Automated
 
 ```sh
-cd backend && ./mvnw clean test       # 76 tests; needs Docker running (Testcontainers)
+cd backend && ./mvnw clean test       # 90 tests; needs Docker running (Testcontainers)
 cd frontend && npm run build && npm run lint
 ```
 
@@ -106,6 +131,8 @@ records.
    next year and promote them.
 5. Create a teacher, sign in as them in another tab, and confirm they see only their
    sections' students and no sensitive fields.
+   As them, open **Attendance → Mark attendance**, mark today, and check that
+   yesterday is view-only for them.
 6. As principal, deactivate that teacher. Their open session is signed out on the
    next click.
 
