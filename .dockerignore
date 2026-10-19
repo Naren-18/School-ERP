@@ -1,0 +1,12 @@
+# Context for deploy/demo/web.Dockerfile (repository root). Only frontend/ and the
+# Caddyfile are copied; keep secrets and build output out of the context anyway.
+.env
+.env.*
+!.env.example
+**/node_modules
+**/dist
+backend
+.git
+.idea
+.vscode
+*.log

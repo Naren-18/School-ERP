@@ -287,6 +287,13 @@ Switch it on or off under **Setup → Modules & preferences**.
 5. **The logo prints only when it is a PNG, JPEG or WebP**, uploaded under School profile.
    The dev seed's SVG logos don't print.
 
+## Hosted demo
+
+To put the demo online on a VPS (Docker Compose, HTTPS through sslip.io, no domain
+needed), follow [`deploy/demo/README.md`](deploy/demo/README.md). It runs the `prod`
+profile with its own database and secrets, and seeds the three demo schools once.
+The production setup (R2, backups, `make deploy`) is Phase 10.
+
 ## Testing
 
 ### Automated

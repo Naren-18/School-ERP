@@ -729,6 +729,15 @@ Other settings:
 
 ## 15. What's next
 
+A demo deployment already exists (`deploy/demo/`, added before Phase 10):
+- backend `Dockerfile` (multi-stage, JRE 21, non-root, `MaxRAMPercentage=60`)
+- a web image (frontend built, served by Caddy; `/api` and `/actuator/health` proxied;
+  zstd/gzip; year-long cache for hashed assets)
+- `docker-compose.yml` (Postgres not published, memory limits, named volumes)
+- HTTPS through an sslip.io hostname, or behind an existing proxy
+
+Phase 10 builds on it.
+
 Phase 10 is **production deployment**:
 - multi-stage backend Dockerfile, the frontend built into Caddy, `docker-compose.prod.yml`
   (app, Postgres, Caddy with HTTPS)

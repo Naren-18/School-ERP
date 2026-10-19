@@ -1,0 +1,72 @@
+# Hosted demo: app + Postgres + Caddy, isolated from anything else on the server
+# (own project name, own network, database not reachable from outside).
+# Run from deploy/demo/:  docker compose --env-file .env up -d --build
+name: school-erp-demo
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    mem_limit: 768m
+    networks: [erp]
+
+  app:
+    build: ../../backend
+    image: school-erp-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      APP_CORS_ALLOWED_ORIGIN: ${PUBLIC_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY}
+      DEMO_SEED_PASSWORD: ${DEMO_SEED_PASSWORD}
+    volumes:
+      - app-files:/data/files
+    mem_limit: 1g
+    networks: [erp]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/demo/web.Dockerfile
+    image: school-erp-web
+    restart: unless-stopped
+    depends_on: [app]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    ports:
+      - "${WEB_HTTP_BIND}:80"
+      - "${WEB_HTTPS_BIND}:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    mem_limit: 128m
+    networks: [erp]
+
+volumes:
+  db-data:
+  app-files:
+  caddy-data:
+  caddy-config:
+
+networks:
+  erp:
