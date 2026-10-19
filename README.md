@@ -19,8 +19,9 @@ share one deployment; each school is fully isolated, with its own logins and dat
 | 5 | Fees: plans, dues, collection, receipts (PDF), cancellation, reports | Done |
 | 6 | Exams: grading scales, papers, marks entry, results, report cards (PDF) | Done |
 | 7 | Certificates (bonafide, TC), editable templates, report card remarks and co-scholastic grades | Done |
-| 8 | School dashboard | Next |
-| 9–11 | Demo data, deployment, polish | Not started |
+| 8 | School dashboard: role-aware stats and charts, teacher view | Done |
+| 9 | Demo data | Next |
+| 10–11 | Deployment, polish | Not started |
 
 ## Run locally
 
@@ -55,7 +56,7 @@ The sidebar shows only what your role allows.
 
 | Area | Principal | Admin | Accountant | Teacher |
 |---|---|---|---|---|
-| Dashboard (setup checklist) | ✔ | ✔ | placeholder | placeholder |
+| Dashboard | whole school: students, attendance, fees, exams, admissions, charts | same as principal | students and fees | their sections, attendance to take, marks to enter |
 | Students: list, search, profile | all | all | all, read-only | only sections they teach |
 | Admit / edit / promote / import students | ✔ | ✔ | — | — |
 | Caste, religion, category, Aadhaar | ✔ | ✔ | hidden | hidden |
@@ -73,6 +74,23 @@ The sidebar shows only what your role allows.
 | Certificate and report card templates | ✔ | — | — | — |
 | Setup: years, classes, sections, subjects, class subjects, teacher assignments, holidays | ✔ | ✔ | — | — |
 | Setup: school profile and logo, modules and preferences, users | ✔ | — | — | — |
+
+### Dashboard
+
+The first screen after login. It refreshes every 5 minutes, or with the refresh button.
+
+- **Principal and admin:**
+  - Headline numbers: active students; today's attendance % and how many sections are
+    marked; fees collected today and this month; dues outstanding and overdue.
+  - Charts: attendance % and fees collected over the last 14 days, and students by
+    class. Hover for exact values.
+  - Lists: sections not yet marked today (click to mark), the 5 classes with the most
+    overdue fees, upcoming exams, and recent admissions.
+  - Until the school is set up, the setup checklist shows on top.
+- **Accountant:** students, the fee numbers and chart, and overdue classes.
+- **Teacher:** their sections with a **Take attendance** button until today is marked,
+  and the papers they still have marks to enter for (unpublished exams).
+- Widgets for a module that is switched off are left out.
 
 ### Setting up a new school (principal)
 
@@ -220,7 +238,7 @@ Switch it on or off under **Setup → Modules & preferences**.
 ### Automated
 
 ```sh
-cd backend && ./mvnw clean test       # 117 tests; needs Docker running (Testcontainers)
+cd backend && ./mvnw clean test       # 121 tests; needs Docker running (Testcontainers)
 cd frontend && npm run build && npm run lint
 ```
 
@@ -230,7 +248,9 @@ records.
 
 ### Manual walkthrough
 
-1. Sign in to `ssv` as `principal`. The app takes on the school's colour and logo.
+1. Sign in to `ssv` as `principal`. The app takes on the school's colour and logo, and the
+   dashboard shows today's attendance, fees, charts and recent admissions. Sign in as
+   `sunitha` (demo teacher, same dev password) to see the teacher dashboard.
 2. In a second browser tab, sign in to `gps`. Each tab shows only its own school.
 3. Follow the dashboard checklist in `gps` to set up a school from scratch.
 4. Admit a student, find them by the parent's phone, change their section, then create

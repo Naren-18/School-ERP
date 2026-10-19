@@ -1,6 +1,6 @@
 # Architecture
 
-How the School ERP is built, as of the end of **Phase 7** (certificates and templates).
+How the School ERP is built, as of the end of **Phase 8** (school dashboard).
 For the rules that every change must follow, see [`CLAUDE.md`](CLAUDE.md); for the phase
 plan, see [`PLAN.md`](PLAN.md); for running it, see [`README.md`](README.md).
 
@@ -77,7 +77,7 @@ Package root `com.schoolerp`. Each module has `controller/ service/ repository/ 
 | `common.pdf` | `HtmlPdf`: shared openhtmltopdf rendering, DejaVu Sans fonts, escaping, ₹ formatting, embedded images (receipts and report cards) |
 | `certificate` | Template mechanism shared with report cards (`TemplateType`, `TemplateFields`, `TemplateValues`, `TemplateDocument`, `TemplateService`: built-in default unless the school saved its own), issuing bonafide/TC with gap-free serials, data snapshot and stored PDF, register; behind `@RequiresModule(CERTIFICATES)` |
 | `common.template` | `Placeholders`: `{{value}}` (escaped) and `{{{block}}}` (app-built HTML), validation against an allowed list, forbidden markup |
-| `dashboard` | Empty, filled in by Phase 8 |
+| `dashboard` | `GET /dashboard`: role-aware read model (`DashboardRepository`, one tenant-scoped SQL query per widget; reuses the attendance day summary and marks entry options); widgets of switched-off modules left out |
 
 ## 4. Tenant isolation (the most important design)
 
@@ -318,6 +318,30 @@ timestamps `OffsetDateTime`. The JVM and JSON time zone is `Asia/Kolkata`.
   - **`HtmlPdf` loads only `data:` URIs** for every PDF (external-resource access
     control, before and after URI resolution). An edited template therefore cannot
     make the server fetch a URL (e.g. cloud metadata) or read a local file.
+- **Dashboard:**
+  - **Role shaping:** `DashboardService` builds a `DashboardDto` whose widgets are null
+    when the role may not see them or the module is off.
+    - Principal/admin: everything.
+    - Accountant: students and fees.
+    - Teacher: only `teacher` (their current-year sections from `TeacherScopeService`,
+      whether today is marked, and unpublished-exam papers with marks missing,
+      via `MarksService.entryOptions` so the assignment rules apply).
+  - **Queries:** `DashboardRepository` holds the native SQL; every table is filtered by
+    `school_id`. There is one query per widget:
+    - students by class (ACTIVE enrollments of the current year)
+    - attendance per day for the last 14 days (same P + ½H rule as the attendance module)
+    - receipts per day, and month to date
+    - dues outstanding and overdue (same rules as the dues report)
+    - top 5 overdue classes
+    - upcoming exams
+    - recent admissions
+    - Today's attendance reuses `AttendanceReportService.today`, so holidays and empty
+      sections are handled the same way as on the summary page.
+  - **Speed:** about 90 ms warm on the dev data (target < 300 ms; re-measure with the
+    Phase 9 demo data).
+  - **Charts** (Recharts): single series, one validated hue (`#2a78d6`, ≥ 3:1 on white),
+    hairline grid, hover tooltips, no legend (the card title names the series), dates
+    as DD-MM and amounts as compact ₹.
 - **Certificates:**
   - **Rules:** a bonafide only for active students. A TC needs a leaving date and
     reason when the student is still active. Issuing the TC runs
@@ -406,6 +430,7 @@ Public: `POST /auth/login`, `GET /public/schools/{code}/branding`, `GET /public/
 | Report card template | `GET /exams/report-card-template` · `PUT` · `DELETE` (reset) · `POST …/preview` | principal |
 | Certificates | `GET /certificates?type&from&to&q&page&size` · `GET /certificates/{id}/pdf` · `GET /certificates/students/{id}` · `POST /certificates/students/{id}/preview` · `POST /certificates/students/{id}` (issue) | principal/admin |
 | Certificate templates | `GET /certificates/templates/{BONAFIDE\|TC}` · `PUT` · `DELETE` (reset) · `POST …/preview` | principal |
+| Dashboard | `GET /dashboard` (shape depends on role: principal/admin everything; accountant students + fees; teacher their sections, attendance to take, marks to enter) | any staff |
 | Results | `GET /exams/result-sections?academicYearId` · `GET /exams/{id}/results?sectionId` · `GET /exams/students/{id}/results?academicYearId` · `GET /exams/report-cards.pdf?sectionId&examId&studentId` | principal/admin; teachers for sections they teach or class-teach |
 
 Conventions:
@@ -423,7 +448,7 @@ Conventions:
 ```
 src/
   api/          client.ts (one axios instance: adds the JWT; 401 → /login; error helpers)
-                auth.ts school.ts academic.ts users.ts students.ts attendance.ts fees.ts exams.ts certificates.ts (typed endpoints)
+                auth.ts school.ts academic.ts users.ts students.ts attendance.ts fees.ts exams.ts certificates.ts dashboard.ts (typed endpoints)
   auth/         tokenStore (memory + sessionStorage), AuthProvider/useAuth (me query),
                 guards (RequireAuth, RequireRole, RequireModule)
   layout/       AppShell (sidebar + header, mobile drawer), menu.tsx (role/module filtered),
@@ -481,7 +506,7 @@ Other settings:
 
 ## 12. Testing strategy
 
-- **117 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
+- **121 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
   Testcontainers. One Spring context is shared, plus one extra for the module-guard
   probe.
 - **`IntegrationTest`** base class: MockMvc, request helpers (`getAs`, `postAs`,
@@ -526,6 +551,11 @@ Other settings:
     off, School A vs B
   - holiday on a marked day: asks (409 with counts), clears only this school's
     marks, or keeps them
+  - dashboard: every number for the principal (students by class, today's attendance
+    before and after marking, collected today and this month, outstanding and overdue,
+    top overdue classes, 14-day trends, upcoming exams, recent admissions); accountant
+    and teacher shapes; another teacher sees nothing; switched-off modules drop their
+    widgets; School A counts only its own data; no academic year means empty
   - unit tests for Verhoeff, AES-GCM, CSV and `ResultCalculator` (grade boundaries such
     as 90.99 → A2 and 91 → A1, absent, incomplete, weighting, ranking)
 - **Frontend:** `tsc` and `oxlint` must be clean.
@@ -533,7 +563,8 @@ Other settings:
   - The acceptance flow is run through the API, and the PDFs are rendered and inspected.
   - From Phase 7, every phase also ends with a browser check of its main flows at
     desktop and ≈360px phone width (CLAUDE.md).
-  - Phase 7's browser check was done by hand by the product owner.
+  - Phase 7's browser check was done by hand by the product owner; Phase 8's was
+    automated in Chrome (desktop, and the app in a 360 px frame).
 
 ## 13. Decisions and deviations
 
@@ -563,6 +594,10 @@ Other settings:
 | Report cards and certificates share one template mechanism; a school's template is a row only once it edits it | No seeding for existing or new schools; "reset" is a delete; the default ships with the code |
 | Placeholders without loops or conditions; tables are app-built blocks | Simple enough for a principal to edit, and nothing in a template can run code |
 | Issued certificates keep the PDF file, not just the data | Re-downloads are identical even after the template or student details change |
+| Recharts for dashboard charts (the first chart library) | PLAN names it; Ant Design has no charts; SVG, React 19 support, tree-shakeable |
+| One dashboard endpoint, shaped by role | One request per screen load; the backend decides what each role may see, the same as everywhere else |
+| Dashboard SQL lives in its own read-only repository, not in each module | One place to review for tenant scoping and speed; the modules' write rules are untouched |
+| "Active students" counts ACTIVE enrollments only | Promoted, detained-and-moved or left students are not in the class any more; the attendance roster for the year may still list promoted ones |
 | Certificate and report card templates are principal-only | They are school settings (CLAUDE.md: admin does everything except settings and users) |
 | Co-scholastic grades are free text up to 5 characters (the screen offers A/B/C) | CBSE uses A/B/C; some state schools use other letters |
 | Grading presets are added with one click instead of being seeded into every school | Schools use one or the other; nothing to delete for the unused one |
@@ -630,13 +665,26 @@ Other settings:
   - **The template editor is a plain textarea.** The preview is a PDF in an iframe,
     which phones may not display; it is a desktop task.
 
+- **Dashboard:**
+  - **Fixed 14-day window.** The charts have no date picker yet.
+  - **Charts are light-only.** The app has no dark mode yet.
+  - **The teacher's "marks to enter" checks every unpublished exam's papers one by one.**
+    That is fine for a teacher's handful of sections, but it would want one query if
+    exams pile up.
+  - **Fee trend shows only real receipt dates.** Receipts are always dated the day they
+    are collected, so the demo chart fills up as fees are collected (or via the
+    Phase 9 seeder).
+
 ## 15. What's next
 
-Phase 8 is the **school dashboard**:
-- a role-aware `GET /api/v1/dashboard`: students by class, today's attendance % and
-  sections not marked, fees collected today and this month, outstanding dues, top
-  overdue classes, upcoming exams, recent admissions
-- one efficient query per widget, under 300 ms with demo data
-- stat cards and 2–3 charts
+Phase 9 is **demo data**:
+- a `demo`-profile seeder, run by a CLI flag and safe to repeat
+- three fictional schools (TS Telugu medium, CBSE English medium, state English medium)
+  with their own PNG logos, colours, grading and fee structures
+- Nursery–Class 10, 2 sections each, 300–500 students per school
+- two months of attendance, fee payments with partial dues, a published exam with
+  marks, and some issued certificates
+- logins per role, documented in the README; only fake data
 
-Phases 9–11 follow the order in `PLAN.md`. Phase 9 seeds PNG logos so they print.
+That lets the dashboard's < 300 ms target be re-measured at realistic size.
+Phases 10–11 follow the order in `PLAN.md`.

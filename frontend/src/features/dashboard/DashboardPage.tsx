@@ -1,104 +1,343 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Card, Col, Empty, Flex, Progress, Row, Statistic, Typography } from 'antd'
-import { CheckCircleFilled, ClockCircleOutlined } from '@ant-design/icons'
+import { useQuery } from '@tanstack/react-query'
+import { Alert, Button, Card, Col, Empty, Flex, List, Row, Skeleton, Tag, Typography } from 'antd'
+import {
+  CheckCircleFilled, ClockCircleOutlined, EditOutlined, ExclamationCircleFilled, ReloadOutlined,
+} from '@ant-design/icons'
+import dayjs from 'dayjs'
+import { errorMessage } from '../../api/client'
+import { dashboardApi, type Dashboard } from '../../api/dashboard'
 import { useAuth } from '../../auth/useAuth'
 import { PRINCIPAL_ADMIN } from '../../layout/menu'
-import {
-  useClasses, useSections, useSubjects, useTeachers, useYearAssignments, useYears,
-} from '../settings/queries'
+import { formatDate, formatINR } from '../../utils/format'
+import { AttendanceTrendChart, CollectionChart, StudentsByClassChart } from './charts'
+import { SetupChecklist } from './SetupChecklist'
 
-/** Until the real dashboard (phase 8): a setup checklist for principal/admin. */
-function SetupChecklist() {
-  const years = useYears().data ?? []
-  const currentYear = years.find((y) => y.current)
-  const classes = useClasses().data ?? []
-  const sections = useSections(currentYear?.id).data ?? []
-  const subjects = useSubjects().data ?? []
-  const teachers = useTeachers().data ?? []
-  // A teacher can only be assigned to a subject mapped to the class, so any
-  // assignment this year means both mapping and assigning have been done.
-  const assignments = useYearAssignments(currentYear?.id).data ?? []
-  const assignedSections = new Set(assignments.map((a) => a.sectionId)).size
-
-  const steps = [
-    { done: !!currentYear, label: 'Create the academic year', detail: currentYear?.name, to: '/settings/years' },
-    { done: classes.length > 0, label: 'Add classes', detail: `${classes.length} classes`, to: '/settings/classes' },
-    { done: teachers.length > 0, label: 'Add teachers', detail: `${teachers.length} teachers`, to: '/settings/users' },
-    { done: sections.length > 0, label: 'Add sections', detail: `${sections.length} sections`, to: '/settings/classes' },
-    { done: subjects.length > 0, label: 'Add subjects', detail: `${subjects.length} subjects`, to: '/settings/subjects' },
-    {
-      done: assignments.length > 0,
-      label: 'Map subjects to classes & assign teachers',
-      detail: `${assignedSections} of ${sections.length} sections assigned`,
-      to: assignments.length > 0 ? '/settings/assignments' : '/settings/class-subjects',
-    },
-  ]
-  const done = steps.filter((s) => s.done).length
-
+/** Text on the left, a value pushed to the right (wraps on narrow screens). */
+function Line({ right, children }: { right: ReactNode; children: ReactNode }) {
   return (
-    <Row gutter={[16, 16]}>
-      <Col xs={24} lg={14}>
-        <Card title="Set up your school">
-          <Progress percent={Math.round((done / steps.length) * 100)} style={{ marginBottom: 16 }} />
-          <Flex vertical gap={12}>
-            {steps.map((s) => (
-              <Flex key={s.label} align="center" gap={12}>
-                {s.done ? (
-                  <CheckCircleFilled style={{ color: 'var(--ant-color-success)', fontSize: 18 }} />
-                ) : (
-                  <ClockCircleOutlined style={{ color: 'var(--ant-color-text-tertiary)', fontSize: 18 }} />
-                )}
-                <Link to={s.to} style={{ flex: 1 }}>
-                  {s.label}
-                </Link>
-                {s.done && s.detail && <Typography.Text type="secondary">{s.detail}</Typography.Text>}
-              </Flex>
-            ))}
-          </Flex>
-        </Card>
-      </Col>
-      <Col xs={24} lg={10}>
-        <Row gutter={[16, 16]}>
-          <Col xs={12}>
-            <Card>
-              <Statistic title="Classes" value={classes.length} />
-            </Card>
-          </Col>
-          <Col xs={12}>
-            <Card>
-              <Statistic title="Sections" value={sections.length} />
-            </Card>
-          </Col>
-          <Col xs={12}>
-            <Card>
-              <Statistic title="Subjects" value={subjects.length} />
-            </Card>
-          </Col>
-          <Col xs={12}>
-            <Card>
-              <Statistic title="Teachers" value={teachers.length} />
-            </Card>
-          </Col>
-        </Row>
-      </Col>
-    </Row>
+    <Flex justify="space-between" align="baseline" gap={12} wrap style={{ width: '100%' }}>
+      <span style={{ minWidth: 0 }}>{children}</span>
+      {right}
+    </Flex>
   )
+}
+
+/** A headline number with a short line under it. */
+function Stat({ title, value, note, to }: { title: string; value: ReactNode; note?: ReactNode; to?: string }) {
+  const body = (
+    <Card size="small" hoverable={!!to} style={{ height: '100%' }} styles={{ body: { padding: '14px 16px' } }}>
+      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+        {title}
+      </Typography.Text>
+      <div style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.3, margin: '2px 0', fontVariantNumeric: 'tabular-nums' }}>
+        {value}
+      </div>
+      {note && <div style={{ fontSize: 13 }}>{note}</div>}
+    </Card>
+  )
+  return to ? <Link to={to}>{body}</Link> : body
 }
 
 export function DashboardPage() {
   const { me, hasAnyRole } = useAuth()
+  const adminLike = hasAnyRole(PRINCIPAL_ADMIN)
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: dashboardApi.get,
+    refetchInterval: 5 * 60_000,
+  })
+
   return (
     <>
-      <Typography.Title level={3} style={{ marginTop: 0 }}>
-        Welcome, {me?.user.fullName}
-      </Typography.Title>
-      {hasAnyRole(PRINCIPAL_ADMIN) ? (
-        <SetupChecklist />
+      <Flex justify="space-between" align="center" wrap gap={8} style={{ marginBottom: 16 }}>
+        <div>
+          <Typography.Title level={3} style={{ margin: 0 }}>
+            Welcome, {me?.user.fullName}
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            {dayjs().format('dddd, DD-MM-YYYY')}
+            {data?.academicYearName && ` · ${data.academicYearName}`}
+          </Typography.Text>
+        </div>
+        <Button icon={<ReloadOutlined />} loading={isFetching} onClick={() => refetch()} aria-label="Refresh" />
+      </Flex>
+      {adminLike && <SetupChecklist />}
+      {isLoading ? (
+        <Skeleton active />
+      ) : isError || !data ? (
+        <Alert type="error" showIcon title={errorMessage(error)} />
+      ) : !data.academicYearName ? (
+        !adminLike && (
+          <Card>
+            <Empty description="The school has not set up the academic year yet." />
+          </Card>
+        )
+      ) : data.teacher ? (
+        <TeacherDashboard data={data} />
       ) : (
-        <Card>
-          <Empty description="Your dashboard will appear here." />
-        </Card>
+        <SchoolDashboard data={data} adminLike={adminLike} />
       )}
     </>
+  )
+}
+
+function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: boolean }) {
+  const a = data.attendance
+  const f = data.fees
+  const marked = a ? a.sectionsToMark - a.notMarked.length : 0
+  return (
+    <Flex vertical gap={16}>
+      <Row gutter={[12, 12]}>
+        {data.students && (
+          <Col xs={12} lg={6}>
+            <Stat title="Students" value={data.students.total} note={<Typography.Text type="secondary">active this year</Typography.Text>} to="/students" />
+          </Col>
+        )}
+        {a && (
+          <Col xs={12} lg={6}>
+            <Stat
+              title="Attendance today"
+              to="/attendance/today"
+              value={a.nonWorkingReason ? '—' : a.percentage === null ? '—' : `${a.percentage}%`}
+              note={
+                a.nonWorkingReason ? (
+                  <Typography.Text type="secondary">{a.nonWorkingReason}</Typography.Text>
+                ) : a.notMarked.length === 0 && a.sectionsToMark > 0 ? (
+                  <Typography.Text type="success">
+                    <CheckCircleFilled /> all {a.sectionsToMark} sections marked
+                  </Typography.Text>
+                ) : (
+                  <Typography.Text type="warning">
+                    <ClockCircleOutlined /> {marked} of {a.sectionsToMark} sections marked
+                  </Typography.Text>
+                )
+              }
+            />
+          </Col>
+        )}
+        {f && (
+          <>
+            <Col xs={12} lg={6}>
+              <Stat
+                title="Collected today"
+                value={formatINR(f.collectedToday)}
+                note={<Typography.Text type="secondary">{formatINR(f.collectedThisMonth)} this month</Typography.Text>}
+                to="/fees/reports"
+              />
+            </Col>
+            <Col xs={12} lg={6}>
+              <Stat
+                title="Dues outstanding"
+                value={formatINR(f.outstanding)}
+                note={
+                  f.overdue > 0 ? (
+                    <Typography.Text type="danger">
+                      <ExclamationCircleFilled /> {formatINR(f.overdue)} overdue
+                    </Typography.Text>
+                  ) : (
+                    <Typography.Text type="secondary">nothing overdue</Typography.Text>
+                  )
+                }
+                to="/fees/reports"
+              />
+            </Col>
+          </>
+        )}
+      </Row>
+
+      <Row gutter={[16, 16]}>
+        {a && (
+          <Col xs={24} lg={12}>
+            <Card title="Attendance, last 14 days" size="small" style={{ height: '100%' }}>
+              {a.trend.some((d) => d.percentage !== null) ? (
+                <AttendanceTrendChart data={a.trend} />
+              ) : (
+                <Empty description="No attendance marked in the last 14 days" />
+              )}
+            </Card>
+          </Col>
+        )}
+        {f && (
+          <Col xs={24} lg={12}>
+            <Card title="Fees collected, last 14 days" size="small" style={{ height: '100%' }}>
+              {f.trend.some((d) => d.amount > 0) ? <CollectionChart data={f.trend} /> : <Empty description="No receipts in the last 14 days" />}
+            </Card>
+          </Col>
+        )}
+        {data.students && (
+          <Col xs={24} lg={12}>
+            <Card title="Students by class" size="small">
+              {data.students.total > 0 ? <StudentsByClassChart data={data.students.byClass} /> : <Empty description="No students enrolled yet" />}
+            </Card>
+          </Col>
+        )}
+        <Col xs={24} lg={12}>
+          <Flex vertical gap={16}>
+            {a && !a.nonWorkingReason && a.notMarked.length > 0 && (
+              <Card title={`Attendance not marked yet (${a.notMarked.length})`} size="small">
+                <Flex gap={6} wrap>
+                  {a.notMarked.map((s) => (
+                    <Link key={s.sectionId} to={`/attendance?section=${s.sectionId}`}>
+                      <Tag style={{ padding: '2px 8px', fontSize: 13 }}>{s.label}</Tag>
+                    </Link>
+                  ))}
+                </Flex>
+              </Card>
+            )}
+            {f && (
+              <Card title="Most overdue classes" size="small" extra={<Link to="/fees/reports">Dues report</Link>}>
+                {f.topOverdueClasses.length === 0 ? (
+                  <Typography.Text type="secondary">Nothing is overdue.</Typography.Text>
+                ) : (
+                  <List
+                    size="small"
+                    split={false}
+                    dataSource={f.topOverdueClasses}
+                    renderItem={(c) => (
+                      <List.Item style={{ padding: '4px 0' }}>
+                        <Line right={<b style={{ fontVariantNumeric: 'tabular-nums' }}>{formatINR(c.overdue)}</b>}>
+                        {c.className} <Typography.Text type="secondary">· {c.students} students</Typography.Text>
+                        </Line>
+                      </List.Item>
+                    )}
+                  />
+                )}
+              </Card>
+            )}
+            {data.upcomingExams && (
+              <Card title="Upcoming exams" size="small" extra={adminLike && <Link to="/exams/setup">Exam setup</Link>}>
+                {data.upcomingExams.length === 0 ? (
+                  <Typography.Text type="secondary">No exams with upcoming dates.</Typography.Text>
+                ) : (
+                  <List
+                    size="small"
+                    split={false}
+                    dataSource={data.upcomingExams}
+                    renderItem={(e) => (
+                      <List.Item style={{ padding: '4px 0' }}>
+                        <Line right={e.published ? <Tag color="green">Published</Tag> : null}>
+                        <b>{e.name}</b>{' '}
+                        <Typography.Text type="secondary">
+                          {formatDate(e.startDate)}
+                          {e.endDate && e.endDate !== e.startDate && ` – ${formatDate(e.endDate)}`}
+                        </Typography.Text>
+                        </Line>
+                      </List.Item>
+                    )}
+                  />
+                )}
+              </Card>
+            )}
+            {data.recentAdmissions && (
+              <Card title="Recent admissions" size="small" extra={adminLike && <Link to="/students/new">Admit student</Link>}>
+                {data.recentAdmissions.length === 0 ? (
+                  <Typography.Text type="secondary">No students yet.</Typography.Text>
+                ) : (
+                  <List
+                    size="small"
+                    split={false}
+                    dataSource={data.recentAdmissions}
+                    renderItem={(s) => (
+                      <List.Item style={{ padding: '4px 0' }}>
+                        <Line right={<Typography.Text type="secondary">{formatDate(s.admissionDate)}</Typography.Text>}>
+                        <Link to={`/students/${s.studentId}`}>{s.fullName}</Link>{' '}
+                        <Typography.Text type="secondary">· {s.className ?? 'not enrolled'}</Typography.Text>
+                        </Line>
+                      </List.Item>
+                    )}
+                  />
+                )}
+              </Card>
+            )}
+          </Flex>
+        </Col>
+      </Row>
+    </Flex>
+  )
+}
+
+/** A teacher's day: their sections, attendance still to take, marks still to enter. */
+function TeacherDashboard({ data }: { data: Dashboard }) {
+  const t = data.teacher!
+  const pendingAttendance = t.sections.filter((s) => s.marked === false)
+  return (
+    <Flex vertical gap={16}>
+      <Row gutter={[12, 12]}>
+        <Col xs={8}>
+          <Stat title="My sections" value={t.sections.length} />
+        </Col>
+        <Col xs={8}>
+          <Stat
+            title="Attendance to take"
+            value={t.nonWorkingReason || t.sections.every((s) => s.marked === null) ? '—' : pendingAttendance.length}
+            to={pendingAttendance.length ? '/attendance' : undefined}
+          />
+        </Col>
+        <Col xs={8}>
+          <Stat title="Marks to enter" value={t.marksPending.length} to={t.marksPending.length ? '/exams' : undefined} />
+        </Col>
+      </Row>
+      {t.nonWorkingReason && <Alert type="info" showIcon title={`Today: ${t.nonWorkingReason}`} />}
+      <Card title="My sections" size="small">
+        {t.sections.length === 0 ? (
+          <Empty description="You have no sections this year. The principal assigns them under Setup → Teacher assignments." />
+        ) : (
+          <List
+            dataSource={t.sections}
+            renderItem={(s) => (
+              <List.Item>
+                <Line
+                  right={
+                    s.marked === false ? (
+                      <Link to={`/attendance?section=${s.sectionId}`}>
+                        <Button type="primary" size="small">
+                          Take attendance
+                        </Button>
+                      </Link>
+                    ) : s.marked ? (
+                      <Typography.Text type="success">
+                        <CheckCircleFilled /> Marked
+                      </Typography.Text>
+                    ) : null
+                  }
+                >
+                  <b>{s.label}</b> {s.classTeacher && <Tag color="blue">Class teacher</Tag>}
+                  <Typography.Text type="secondary"> · {s.students} students</Typography.Text>
+                </Line>
+              </List.Item>
+            )}
+          />
+        )}
+      </Card>
+      <Card title="Marks to enter" size="small">
+        {t.marksPending.length === 0 ? (
+          <Typography.Text type="secondary">Nothing pending. Marks are entered while an exam is not yet published.</Typography.Text>
+        ) : (
+          <List
+            dataSource={t.marksPending}
+            renderItem={(m) => (
+              <List.Item>
+                <Line
+                  right={
+                    <Link to={`/exams?exam=${m.examId}&paper=${m.examSubjectId}&section=${m.sectionId}`}>
+                      <Button size="small" icon={<EditOutlined />}>
+                        Enter
+                      </Button>
+                    </Link>
+                  }
+                >
+                  <b>{m.examName}</b> · {m.label} · {m.subjectName}{' '}
+                  <Typography.Text type="secondary">
+                    ({m.entered}/{m.students})
+                  </Typography.Text>
+                </Line>
+              </List.Item>
+            )}
+          />
+        )}
+      </Card>
+    </Flex>
   )
 }

@@ -211,12 +211,12 @@ Frontend:
 ## Phase 8 — School dashboard
 
 Backend:
-- [ ] `GET /api/v1/dashboard` (role-aware): total active students (by class), today's attendance %, sections not yet marked today, fee collected today / this month, total outstanding dues, top 5 overdue classes, upcoming exams, recent admissions
-- [ ] Single efficient query per widget; must load < 300 ms with demo data
+- [x] `GET /api/v1/dashboard` (role-aware): total active students (by class), today's attendance %, sections not yet marked today, fee collected today / this month, total outstanding dues, top 5 overdue classes, upcoming exams, recent admissions
+- [x] Single efficient query per widget; must load < 300 ms with demo data
 
 Frontend:
-- [ ] Dashboard with stat cards + 2–3 charts (Ant Design charts or Recharts)
-- [ ] TEACHER sees a simplified dashboard: their sections, attendance pending, marks pending
+- [x] Dashboard with stat cards + 2–3 charts (Ant Design charts or Recharts)
+- [x] TEACHER sees a simplified dashboard: their sections, attendance pending, marks pending
 
 **Acceptance:** Dashboard is the first screen after login and looks good on laptop and phone.
 
