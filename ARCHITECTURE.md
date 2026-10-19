@@ -1,6 +1,6 @@
 # Architecture
 
-How the School ERP is built, as of the end of **Phase 8** (school dashboard).
+How the School ERP is built, as of the end of **Phase 9** (demo data).
 For the rules that every change must follow, see [`CLAUDE.md`](CLAUDE.md); for the phase
 plan, see [`PLAN.md`](PLAN.md); for running it, see [`README.md`](README.md).
 
@@ -66,7 +66,7 @@ Package root `com.schoolerp`. Each module has `controller/ service/ repository/ 
 | `common` | `BaseEntity`, `TenantEntity`; errors (`ApiException`, `NotFoundException` 404, `ConflictException` 409, `BadRequestException` 400, `GlobalExceptionHandler`); `PageResponse`; `crypto` (AES-GCM `FieldCipher`, `EncryptedStringConverter`, Aadhaar Verhoeff check); `csv` (RFC 4180 reader/writer); `money` (`AmountInWords`, Indian lakh/crore); `pdf` (`HtmlPdf`) |
 | `tenant` | `TenantContext` (ThreadLocal school id), `TenantIdResolver` (feeds the Hibernate filter), `TenantGuard` (404 unless the entity is this school's) |
 | `auth` | Users and roles, login, JWT, per-request session check, rate limiting, user management, staff picker, `Access` role expressions, security config |
-| `school` | School profile, typed settings (JSONB), logo upload, public branding, module toggles (`@RequiresModule` + `ModuleGuard`), dev seeder and `ProductionSafetyCheck` |
+| `school` | School profile, typed settings (JSONB), logo upload, public branding, module toggles (`@RequiresModule` + `ModuleGuard`), dev seeder, `ProductionSafetyCheck`, and the demo seeder (`seed/demo`: `DemoDataService`, `DemoSeedRunner`, three school specs, PNG logos in `resources/demo/`) |
 | `academic` | Academic years, classes, sections, subjects, class–subject mapping, teacher assignments, holidays, teacher scope, `SectionUsageCheck` (other modules veto section deletion) |
 | `student` | Students, guardians, enrollments, search, photos, leaving, promotion, roll numbers, CSV import, `StudentEnrolledEvent` |
 | `audit` | `AuditService` writing `audit_log` |
@@ -318,6 +318,34 @@ timestamps `OffsetDateTime`. The JVM and JSON time zone is `Asia/Kolkata`.
   - **`HtmlPdf` loads only `data:` URIs** for every PDF (external-resource access
     control, before and after URI resolution). An edited template therefore cannot
     make the server fetch a URL (e.g. cloud metadata) or read a local file.
+- **Demo data** (`school/seed/demo`):
+  - **Engine:** `DemoDataService` builds each school through the application's own
+    services, signed in as that school's principal (security context and
+    `TenantContext` set for the run, cleared in `finally`). So the same rules apply as
+    for a real user:
+    - dues are created on enrollment
+    - receipt and certificate numbers stay gap-free
+    - attendance only on school days
+    - marks only for unpublished exams
+    - audit entries are written
+  - **Order per school:**
+    1. Profile, settings and PNG logo.
+    2. Staff: principal, admin, accountant, `teacher1`…`teacher26`.
+    3. The year from the board's start month; classes, sections with class teachers,
+       subjects, class subjects, teacher assignments.
+    4. Holidays, then the fee plan, before admissions so dues follow.
+    5. Admissions, then alphabetical roll numbers.
+    6. Concessions, then payments collected in date order with backdated `paidOn`.
+    7. Attendance per school day, with today partly marked.
+    8. Exams: marks, remarks and grades for the first past exam, then publish;
+       partial marks for the next.
+    9. Certificates.
+  - **Repeatable:** randomness uses a fixed seed per school and year; dates are
+    month-days placed in the current year, so the data always looks current.
+  - **Idempotent:** a school code that exists is skipped.
+  - **Trigger:** `DemoSeedRunner` (profile `demo`) needs `--seed-demo` as well, then
+    exits. It runs with a web context (the security setup needs one), so the command
+    uses `--server.port=0`.
 - **Dashboard:**
   - **Role shaping:** `DashboardService` builds a `DashboardDto` whose widgets are null
     when the role may not see them or the module is off.
@@ -337,8 +365,11 @@ timestamps `OffsetDateTime`. The JVM and JSON time zone is `Asia/Kolkata`.
     - recent admissions
     - Today's attendance reuses `AttendanceReportService.today`, so holidays and empty
       sections are handled the same way as on the summary page.
-  - **Speed:** about 90 ms warm on the dev data (target < 300 ms; re-measure with the
-    Phase 9 demo data).
+  - **Speed, measured on the demo schools (about 390 students, 60 days):**
+    - principal dashboard about 95 ms warm; teacher dashboard about 250 ms (target < 300 ms)
+    - the teacher's "marks to enter" covers only exams that have started
+    - marks entry options use two grouped counts per exam instead of a class list per
+      paper (before: about 1–1.8 s)
   - **Charts** (Recharts): single series, one validated hue (`#2a78d6`, ≥ 3:1 on white),
     hairline grid, hover tooltips, no legend (the card title names the series), dates
     as DD-MM and amounts as compact ₹.
@@ -485,19 +516,20 @@ src/
 
 ## 11. Configuration
 
-`application.yml` has three profiles:
+`application.yml` has these profiles:
 
 | Profile | Behaviour |
 |---|---|
 | default (`dev`) | Imports `../.env`; safe local defaults; runs `DevSeeder` (2 schools) |
 | `prod` | Every value from the environment, no defaults |
-| `test` (tests only) | Testcontainers datasource, test secrets, uploads under `target/test-files` |
+| `demo` (added to dev or prod) | Activates `DemoSeedRunner`: with `--seed-demo` it creates the three demo schools (skipping existing codes) and exits; needs `DEMO_SEED_PASSWORD` |
+| `test` (tests only) | Testcontainers datasource, test secrets, uploads under `target/test-files`; `DemoDataService` is available so the seeder can be tested |
 
 Environment variables (see `.env.example`):
 - **Database:** `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`
 - **App:** `SPRING_PROFILES_ACTIVE`, `SERVER_PORT`, `APP_CORS_ALLOWED_ORIGIN`
 - **Secrets:** `JWT_SECRET` (≥ 32 bytes), `APP_ENCRYPTION_KEY` (base64, 32 bytes)
-- **Files and dev:** `FILE_STORAGE_LOCAL_DIR`, `DEV_SEED_PASSWORD`
+- **Files and seeding:** `FILE_STORAGE_LOCAL_DIR`, `DEV_SEED_PASSWORD`, `DEMO_SEED_PASSWORD` (no default), `DEMO_STUDENTS_PER_SECTION`, `DEMO_ATTENDANCE_DAYS`
 
 Other settings:
 - Multipart limit 2 MB per file.
@@ -506,7 +538,7 @@ Other settings:
 
 ## 12. Testing strategy
 
-- **121 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
+- **122 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
   Testcontainers. One Spring context is shared, plus one extra for the module-guard
   probe.
 - **`IntegrationTest`** base class: MockMvc, request helpers (`getAs`, `postAs`,
@@ -551,6 +583,10 @@ Other settings:
     off, School A vs B
   - holiday on a marked day: asks (409 with counts), clears only this school's
     marks, or keeps them
+  - demo seeder (2 students per section, 6 days): three schools with 13 classes, 26
+    sections, 52 students and 29 users each; attendance, receipts, one published exam
+    with marks and notes, 2 TCs; no Aadhaar and only 900… phones; every documented
+    login works; logo uploaded; dashboards populated; a second run skips all three
   - dashboard: every number for the principal (students by class, today's attendance
     before and after marking, collected today and this month, outstanding and overdue,
     top overdue classes, 14-day trends, upcoming exams, recent admissions); accountant
@@ -564,7 +600,8 @@ Other settings:
   - From Phase 7, every phase also ends with a browser check of its main flows at
     desktop and ≈360px phone width (CLAUDE.md).
   - Phase 7's browser check was done by hand by the product owner; Phase 8's was
-    automated in Chrome (desktop, and the app in a 360 px frame).
+    automated in Chrome (desktop, and the app in a 360 px frame), and so was Phase 9's
+    (two demo schools: dashboard, students, results, attendance, phone width).
 
 ## 13. Decisions and deviations
 
@@ -582,6 +619,10 @@ Other settings:
 | Social category includes `OBC` (column comment listed GEN/BC/SC/ST/OTHER) | CBSE schools use OBC; no DB constraint is affected |
 | Admission form ignores empty contact rows | The default Mother row must not block saving when only one parent is known |
 | `DevSeeder` is `@Profile("dev & !prod")`; `ProductionSafetyCheck` stops a prod start if `DEV_SEED_PASSWORD` is set or `dev` is also active | `dev` is the default profile, so a misconfigured server must fail loudly rather than seed demo logins |
+| Demo data through the real services, not SQL inserts | Every business rule and number sequence holds, and the data can't drift from what the app would create; the cost is a few minutes per run |
+| Demo seeding needs both the `demo` profile and `--seed-demo`, and `DEMO_SEED_PASSWORD` has no default | Neither a leftover profile nor a stray flag can create schools with a known password on a real server |
+| Demo logos are PNG files in `resources/demo/`, drawn once, not generated at runtime | They print on PDFs (openhtmltopdf can't embed SVG), and a slim production image needs no fonts or AWT |
+| Only 5 documented logins per demo school; `teacher3`…`teacher26` exist for assignments | Every section and subject has a teacher, and the demo script stays short |
 | Social category has `BC_A`..`BC_E` (shown BC-A..BC-E) alongside `BC`; CSV accepts "BC-A", "bc a", and "OC" as General | Telangana and AP schools record BC sub-groups; other states use plain BC |
 | Section delete asks other modules through `SectionUsageCheck` (students: "N students are enrolled in Class 5 – A …") | A clear message without the academic module depending on the student module |
 | Attendance saves the whole section at once and rejects partial lists | The screen defaults everyone to Present; a partial save would leave students silently unmarked |
@@ -641,9 +682,9 @@ Other settings:
 - **Attendance changes are not in the audit log.** Only the latest change is kept,
   via `marked_by` and `marked_at`; earlier values are overwritten.
 
-- **Seeded placeholder logos don't print.** The SVG data-URI logos of the dev schools are
-  not embedded in PDFs (openhtmltopdf would need its SVG add-on); uploaded PNG/JPEG/WebP
-  logos are. Phase 9 seeds PNG logos for this reason.
+- **The dev seed's placeholder logos don't print.** The SVG data-URI logos of `ssv`/`gps`
+  are not embedded in PDFs (openhtmltopdf would need its SVG add-on). Uploaded
+  PNG/JPEG/WebP logos are, and so are the demo schools' PNG logos.
 - **No fee refunds or advance payments.** Money only goes against existing dues; a
   mistake is corrected by cancelling the receipt.
 
@@ -652,8 +693,10 @@ Other settings:
     the class teacher's overall remark is.
   - **Marks changes are not audited one by one.** `entered_by` and `updated_at`
     are kept; publish is audited.
-  - **Report card printing is synchronous.** A section of ~40 renders in about a
-    second; whole-school printing would need a background job.
+  - **Report card printing is synchronous and not fast.** On the demo data, one section
+    (about 15 students) takes 1.5–2.5 s, roughly 100 ms per page (student details,
+    attendance and notes are loaded per student). Whole-school printing would need
+    batching and a background job.
   - **Results include students who were promoted or detained**, but not those who
     left, because the roster is the enrollment in that year.
 
@@ -671,20 +714,30 @@ Other settings:
   - **The teacher's "marks to enter" checks every unpublished exam's papers one by one.**
     That is fine for a teacher's handful of sections, but it would want one query if
     exams pile up.
-  - **Fee trend shows only real receipt dates.** Receipts are always dated the day they
-    are collected, so the demo chart fills up as fees are collected (or via the
-    Phase 9 seeder).
+
+- **Demo data:**
+  - **Seeding takes a few minutes** (everything goes through the services); the log shows each step.
+  - **Audit times are the seeding run.** Receipts carry backdated `paidOn` dates, but the
+    audit log shows when the seeder ran. All certificates are issued on the seeding day.
+  - **Only the current academic year.** There is no promotion history from a previous year.
+  - **The data ages.** "Today" (attendance marked today, upcoming exams, overdue) is the
+    seeding day. Seed a fresh database shortly before a demo; there is no "reset demo"
+    command, on purpose (it would delete schools).
+  - **Runs before the payment fix put later payments on the seeding day.** Seeds made
+    before payments dated after "today" were skipped show a spike in "collected today"
+    (seen in `lvps` on the dev database). A fresh seed doesn't.
 
 ## 15. What's next
 
-Phase 9 is **demo data**:
-- a `demo`-profile seeder, run by a CLI flag and safe to repeat
-- three fictional schools (TS Telugu medium, CBSE English medium, state English medium)
-  with their own PNG logos, colours, grading and fee structures
-- Nursery–Class 10, 2 sections each, 300–500 students per school
-- two months of attendance, fee payments with partial dues, a published exam with
-  marks, and some issued certificates
-- logins per role, documented in the README; only fake data
+Phase 10 is **production deployment**:
+- multi-stage backend Dockerfile, the frontend built into Caddy, `docker-compose.prod.yml`
+  (app, Postgres, Caddy with HTTPS)
+- the R2 `FileStorage`, nightly `pg_dump` backups to R2 with a tested restore
+- health checks and `make deploy`
+- running the demo seeder once on the server (`prod,demo` profiles)
+- per-school subdomains (`ssv.schoolerp.com`) are planned here as well
 
-That lets the dashboard's < 300 ms target be re-measured at realistic size.
-Phases 10–11 follow the order in `PLAN.md`.
+Note: PLAN.md shows Phase 10's checkboxes as ticked, but none of that work exists
+in the repository yet (no Dockerfile or production compose file).
+
+Phase 11 (demo polish) follows.

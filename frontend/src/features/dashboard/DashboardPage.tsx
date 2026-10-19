@@ -31,7 +31,7 @@ function Stat({ title, value, note, to }: { title: string; value: ReactNode; not
       <Typography.Text type="secondary" style={{ fontSize: 13 }}>
         {title}
       </Typography.Text>
-      <div style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.3, margin: '2px 0', fontVariantNumeric: 'tabular-nums' }}>
+      <div style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.3, margin: '2px 0', fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>
         {value}
       </div>
       {note && <div style={{ fontSize: 13 }}>{note}</div>}
@@ -119,7 +119,7 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
         )}
         {f && (
           <>
-            <Col xs={12} lg={6}>
+            <Col xs={24} sm={12} lg={6}>
               <Stat
                 title="Collected today"
                 value={formatINR(f.collectedToday)}
@@ -127,7 +127,7 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
                 to="/fees/reports"
               />
             </Col>
-            <Col xs={12} lg={6}>
+            <Col xs={24} sm={12} lg={6}>
               <Stat
                 title="Dues outstanding"
                 value={formatINR(f.outstanding)}

@@ -148,7 +148,8 @@ public class DashboardService {
 		List<DashboardDto.MarksPending> pending = new ArrayList<>();
 		if (modules.exams()) {
 			for (ExamDto.Exam exam : examService.list(null)) {
-				if (exam.published()) {
+				// Only exams that have started: nothing is "pending" for one that has not been held.
+				if (exam.published() || (exam.startDate() != null && exam.startDate().isAfter(today))) {
 					continue;
 				}
 				for (ExamDto.EntryOption o : marksService.entryOptions(exam.id())) {

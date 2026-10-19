@@ -3,6 +3,7 @@ package com.schoolerp.exam.service;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,21 +63,26 @@ public class MarksService {
 			.views(byClass.values().stream().flatMap(List::stream).toList())
 			.stream()
 			.collect(Collectors.toMap(ExamDto.Paper::id, Function.identity()));
+		if (paperViews.isEmpty()) {
+			return List.of();
+		}
+		// Two grouped counts for the whole exam instead of a class list per paper.
+		Map<Long, Integer> students = new HashMap<>();
+		marks.activeBySection(schoolId, exam.getAcademicYearId())
+			.forEach(r -> students.put(((Number) r[0]).longValue(), ((Number) r[1]).intValue()));
+		Map<List<Long>, Integer> entered = new HashMap<>();
+		marks.enteredBySection(schoolId, paperViews.keySet())
+			.forEach(r -> entered.put(List.of(((Number) r[0]).longValue(), ((Number) r[1]).longValue()),
+					((Number) r[2]).intValue()));
 		List<ExamDto.EntryOption> options = new ArrayList<>();
 		for (SectionDto.Response section : sectionService.list(exam.getAcademicYearId(), null)) {
 			for (ExamSubject p : byClass.getOrDefault(section.classId(), List.of())) {
 				if (allowed != null && !allowed.contains(List.of(section.id(), p.getSubjectId()))) {
 					continue;
 				}
-				List<Long> roster = enrollments.sectionStudents(section.id(), false)
-					.stream()
-					.map(StudentDto.SectionStudent::enrollmentId)
-					.toList();
-				int entered = roster.isEmpty() ? 0
-						: (int) marks.countBySchoolIdAndExamSubjectIdAndEnrollmentIdIn(schoolId, p.getId(), roster);
 				options.add(new ExamDto.EntryOption(p.getId(), section.id(), section.classId(), section.className(),
 						section.name(), p.getSubjectId(), paperViews.get(p.getId()).subjectName(), p.getMaxMarks(),
-						roster.size(), entered));
+						students.getOrDefault(section.id(), 0), entered.getOrDefault(List.of(p.getId(), section.id()), 0)));
 			}
 		}
 		return options;

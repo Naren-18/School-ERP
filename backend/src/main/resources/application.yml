@@ -52,6 +52,11 @@ app:
     key: ${APP_ENCRYPTION_KEY}
   files:
     local-dir: ${FILE_STORAGE_LOCAL_DIR:./data/files}
+  # Demo schools (profile "demo" + --seed-demo). The password is required, never defaulted.
+  demo:
+    password: ${DEMO_SEED_PASSWORD:}
+    students-per-section: ${DEMO_STUDENTS_PER_SECTION:15}
+    attendance-days: ${DEMO_ATTENDANCE_DAYS:60}
 
 ---
 # Local development: reads ../.env (same file docker compose uses) and falls back

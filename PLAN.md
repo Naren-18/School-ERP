@@ -224,16 +224,16 @@ Frontend:
 
 ## Phase 9 — Demo data
 
-- [ ] `demo` profile seeder (separate from dev seed), idempotent, run via a CLI flag
-- [ ] 3 fictional schools with distinct logos/colors/settings:
+- [x] `demo` profile seeder (separate from dev seed), idempotent, run via a CLI flag
+- [x] 3 fictional schools with distinct logos/colors/settings:
   1. State board, Telugu medium (TS CCE grading, FA1–4/SA1–2, Telugu/Hindi/English)
   2. CBSE, English medium (9-point grading, Term 1/Term 2)
   3. State board, English medium (different fee structure, transport fee head)
-- [ ] Seed logos as **PNG, not SVG**, so they print on receipts, report cards and certificates (openhtmltopdf embeds PNG/JPEG only; dev seed SVGs are skipped in PDFs)
-- [ ] Each: current year, Nursery–Class 10, 2 sections each, ~300–500 students with realistic Telugu/Indian names, guardians, phone numbers (fake, e.g. 9xxxxxxxxx pattern)
-- [ ] 2 months of attendance history, fee payments with realistic partial dues, one published exam with marks, a few issued certificates
-- [ ] Logins per school: principal, admin, accountant, 2 teachers (documented in README; password from env)
-- [ ] **Only fake data. No real student information anywhere.**
+- [x] Seed logos as **PNG, not SVG**, so they print on receipts, report cards and certificates (openhtmltopdf embeds PNG/JPEG only; dev seed SVGs are skipped in PDFs)
+- [x] Each: current year, Nursery–Class 10, 2 sections each, ~300–500 students with realistic Telugu/Indian names, guardians, phone numbers (fake, e.g. 9xxxxxxxxx pattern)
+- [x] 2 months of attendance history, fee payments with realistic partial dues, one published exam with marks, a few issued certificates
+- [x] Logins per school: principal, admin, accountant, 2 teachers (documented in README; password from env)
+- [x] **Only fake data. No real student information anywhere.**
 
 **Acceptance:** Fresh database + seeder → every screen in every school looks populated and realistic.
 

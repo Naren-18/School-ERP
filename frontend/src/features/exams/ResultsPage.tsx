@@ -29,6 +29,8 @@ export function ResultsPage() {
     enabled: !!examId && !!sectionId,
   })
   const data = sheet.data
+  // A class without papers in this exam (e.g. pre-primary): nothing to show or print.
+  const noPapers = !!data && data.subjects.length === 0
 
   const print = async (key: string, p: { examId?: number; studentId?: number }) => {
     setPrinting(key)
@@ -104,7 +106,7 @@ export function ResultsPage() {
         <Card
           title={data ? `${data.examName} · ${data.sectionLabel}` : undefined}
           extra={
-            data && (
+            data && !noPapers && (
               <Space wrap>
                 <Button icon={<DownloadOutlined />} onClick={exportCsv}>
                   CSV
@@ -132,6 +134,9 @@ export function ResultsPage() {
           {data && !data.published && (
             <Typography.Paragraph type="secondary">Draft: results may still change until the exam is published.</Typography.Paragraph>
           )}
+          {noPapers ? (
+            <Empty description={`${data?.examName} has no papers for this class. Papers are set under Exam setup → Papers.`} />
+          ) : (
           <Table<Row>
             rowKey="enrollmentId"
             size="small"
@@ -191,6 +196,7 @@ export function ResultsPage() {
               },
             ]}
           />
+          )}
         </Card>
       )}
     </>

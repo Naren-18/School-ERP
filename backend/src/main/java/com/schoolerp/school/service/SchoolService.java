@@ -79,8 +79,13 @@ public class SchoolService {
 
 	@Transactional
 	public SchoolProfileResponse uploadLogo(MultipartFile file) {
+		return uploadLogo(readLogo(file));
+	}
+
+	/** Same as an upload, for server-side callers (demo seeding). */
+	@Transactional
+	public SchoolProfileResponse uploadLogo(byte[] content) {
 		School school = requireCurrent();
-		byte[] content = readLogo(file);
 		String extension = ImageTypes.detect(content)
 			.orElseThrow(() -> new BadRequestException("Logo must be a PNG, JPEG or WebP image"));
 		String fileName = "logo-" + clock.millis() + "." + extension;

@@ -20,8 +20,9 @@ share one deployment; each school is fully isolated, with its own logins and dat
 | 6 | Exams: grading scales, papers, marks entry, results, report cards (PDF) | Done |
 | 7 | Certificates (bonafide, TC), editable templates, report card remarks and co-scholastic grades | Done |
 | 8 | School dashboard: role-aware stats and charts, teacher view | Done |
-| 9 | Demo data | Next |
-| 10–11 | Deployment, polish | Not started |
+| 9 | Demo data: three fictional schools, about 390 students each, a one-off seeder | Done |
+| 10 | Production deployment | Next |
+| 11 | Demo polish | Not started |
 
 ## Run locally
 
@@ -49,6 +50,59 @@ Any other users (teachers, admins, accountants) are created by a principal under
 **Setup → Users**. All data in this repository and its seeds is fictional.
 
 The login password is case-sensitive and spaces count, so don't add a leading space.
+
+### Demo schools (for sales demos)
+
+Three fully populated fictional schools, made by a separate one-off seeder: the `demo`
+profile plus the `--seed-demo` flag. It needs `DEMO_SEED_PASSWORD`, which has no
+default. It creates each school whose code doesn't exist yet, so running it again
+changes nothing. Then it exits.
+
+```sh
+cd backend
+./mvnw -q -DskipTests package
+DEMO_SEED_PASSWORD='choose-a-password' java -jar target/school-erp-0.0.1-SNAPSHOT.jar \
+  --spring.profiles.active=dev,demo --seed-demo --server.port=0
+```
+
+- Run it from `backend/` so the logos go into the same file store as the app.
+- It takes a few minutes; the log shows each step.
+- Smaller runs: `DEMO_STUDENTS_PER_SECTION` (default 15) and `DEMO_ATTENDANCE_DAYS`
+  (default 60).
+- `--server.port=0` picks a free port, so your normal backend can keep running.
+
+| School code | School | Board, medium | Grading and exams | Fees |
+|---|---|---|---|---|
+| `vjhs` | Vidya Jyothi High School, Hanamkonda | State, Telugu | TS CCE; FA1–4, SA1–2 | 3 tuition terms + books & uniform |
+| `lvps` | Lotus Valley Public School, Hyderabad | CBSE, English | CBSE 9-point; Term 1, Term 2 | Quarterly tuition + annual charges; 5-day week |
+| `sems` | Sunrise English Medium School, Khammam | State, English | TS CCE; FA1, FA2, SA1, SA2 | 2 tuition terms + transport (about 40% opt out) |
+
+Each school has:
+- Nursery to Class 10, 2 sections each, about 390 students with guardians.
+- Up to 60 days of attendance, with today partly marked.
+- Fees paid on time, in part or not yet, plus sibling concessions.
+- The first exam that is over published, with marks, remarks and co-scholastic grades;
+  the next one has marks partly entered.
+- 5 bonafide certificates and 2 TCs.
+- Holidays, a PNG logo and its own colour.
+
+Logins, all with the `DEMO_SEED_PASSWORD`:
+
+| Username | Role | Notes |
+|---|---|---|
+| `principal` | Principal | everything, including settings and templates |
+| `admin` | Admin | everything except users and settings |
+| `accountant` | Accountant | fees and receipts |
+| `teacher1` | Teacher | class teacher of Class 5 – A; Mathematics in Classes 5–7 |
+| `teacher2` | Teacher | class teacher of Class 8 – B; English in Classes 8–10 |
+
+There are also `teacher3`… `teacher26`, so every subject and section has a teacher.
+
+**Everything is made up:**
+- Names are random combinations of common first names and surnames.
+- Phone numbers are in the `900…` range.
+- Email addresses use the `.example` domain.
+- No Aadhaar number or caste is recorded.
 
 ## What you can do today
 
@@ -238,7 +292,7 @@ Switch it on or off under **Setup → Modules & preferences**.
 ### Automated
 
 ```sh
-cd backend && ./mvnw clean test       # 121 tests; needs Docker running (Testcontainers)
+cd backend && ./mvnw clean test       # 122 tests; needs Docker running (Testcontainers)
 cd frontend && npm run build && npm run lint
 ```
 
