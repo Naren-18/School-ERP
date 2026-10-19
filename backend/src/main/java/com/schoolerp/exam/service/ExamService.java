@@ -27,6 +27,7 @@ import com.schoolerp.exam.entity.ExamSubject;
 import com.schoolerp.exam.repository.ExamRepository;
 import com.schoolerp.exam.repository.ExamSubjectRepository;
 import com.schoolerp.exam.repository.MarkRepository;
+import com.schoolerp.exam.repository.ReportCardNoteRepository;
 import com.schoolerp.tenant.TenantContext;
 
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,8 @@ public class ExamService {
 	private final ExamSubjectRepository papers;
 
 	private final MarkRepository marks;
+
+	private final ReportCardNoteRepository notes;
 
 	private final GradingService grading;
 
@@ -107,6 +110,7 @@ public class ExamService {
 				list.stream().map(ExamSubject::getId).toList())) {
 			throw new ConflictException("Marks have been entered for " + exam.getName() + ", so it cannot be deleted");
 		}
+		notes.deleteAll(notes.findBySchoolIdAndExamId(TenantContext.require(), id));
 		papers.deleteAll(list);
 		exams.delete(exam);
 	}

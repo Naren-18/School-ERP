@@ -8,9 +8,12 @@ import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.util.Base64;
 import java.util.Locale;
+import java.util.function.BiPredicate;
 
 import org.springframework.web.util.HtmlUtils;
 
+import com.openhtmltopdf.outputdevice.helper.ExternalResourceControlPriority;
+import com.openhtmltopdf.outputdevice.helper.ExternalResourceType;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 
 /**
@@ -30,11 +33,28 @@ public final class HtmlPdf {
 	private HtmlPdf() {
 	}
 
+	/** The document could not be laid out, usually because a school-edited template is not well-formed XHTML. */
+	public static class InvalidDocumentException extends RuntimeException {
+
+		InvalidDocumentException(Throwable cause) {
+			super(cause.getMessage(), cause);
+		}
+
+	}
+
+	/**
+	 * Renders the document. Only inline {@code data:} resources are loaded:
+	 * templates are edited by schools, so they must not make the server fetch
+	 * URLs or read local files.
+	 */
 	public static byte[] render(String xhtml) {
 		try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 			PdfRendererBuilder builder = new PdfRendererBuilder();
 			builder.useFont(() -> font(FONT_REGULAR), FONT_FAMILY, 400, PdfRendererBuilder.FontStyle.NORMAL, true);
 			builder.useFont(() -> font(FONT_BOLD), FONT_FAMILY, 700, PdfRendererBuilder.FontStyle.NORMAL, true);
+			BiPredicate<String, ExternalResourceType> inlineOnly = (uri, type) -> uri != null && uri.startsWith("data:");
+			builder.useExternalResourceAccessControl(inlineOnly, ExternalResourceControlPriority.RUN_BEFORE_RESOLVING_URI);
+			builder.useExternalResourceAccessControl(inlineOnly, ExternalResourceControlPriority.RUN_AFTER_RESOLVING_URI);
 			builder.withHtmlContent(xhtml, null);
 			builder.toStream(out);
 			builder.run();
@@ -42,6 +62,9 @@ public final class HtmlPdf {
 		}
 		catch (IOException ex) {
 			throw new UncheckedIOException("Could not create the PDF", ex);
+		}
+		catch (RuntimeException ex) {
+			throw new InvalidDocumentException(ex);
 		}
 	}
 

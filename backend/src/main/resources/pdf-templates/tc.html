@@ -1,0 +1,49 @@
+<div class="border">
+  <div class="header">
+    {{{school.logo}}}
+    <h1>{{school.name}}</h1>
+    <div class="muted small">{{school.address}}</div>
+    <div class="muted small">{{school.board}}   {{school.phone}}</div>
+  </div>
+
+  <table>
+    <tr>
+      <td>TC No. <b>{{certificate.serialNo}}</b></td>
+      <td class="right">Admission No. <b>{{student.admissionNo}}</b></td>
+    </tr>
+  </table>
+
+  <div class="title">TRANSFER CERTIFICATE</div>
+
+  <table class="fields">
+    <tr><td class="label">1. Name of the student</td><td><b>{{student.fullName}}</b></td></tr>
+    <tr><td class="label">2. Father's name</td><td>{{student.fatherName}}</td></tr>
+    <tr><td class="label">3. Mother's name</td><td>{{student.motherName}}</td></tr>
+    <tr><td class="label">4. Date of birth</td><td>{{student.dateOfBirth}} ({{student.dateOfBirthInWords}})</td></tr>
+    <tr><td class="label">5. Gender</td><td>{{student.gender}}</td></tr>
+    <tr><td class="label">6. Religion and caste</td><td>{{student.religion}} {{student.caste}}</td></tr>
+    <tr><td class="label">7. Social category</td><td>{{student.socialCategory}}</td></tr>
+    <tr><td class="label">8. Mother tongue</td><td>{{student.motherTongue}}</td></tr>
+    <tr><td class="label">9. Date of admission and class</td><td>{{student.admissionDate}}, {{student.admittedClass}}</td></tr>
+    <tr><td class="label">10. Class last studied</td><td>{{student.class}} ({{student.academicYear}})</td></tr>
+    <tr><td class="label">11. Whether qualified for promotion</td><td>{{tc.promotion}}</td></tr>
+    <tr><td class="label">12. Date of leaving</td><td>{{tc.leavingDate}}</td></tr>
+    <tr><td class="label">13. Reason for leaving</td><td>{{tc.reason}}</td></tr>
+    <tr><td class="label">14. Conduct</td><td>{{tc.conduct}}</td></tr>
+    <tr><td class="label">15. Identification marks</td><td>{{student.identificationMarks}}</td></tr>
+    <tr><td class="label">16. Remarks</td><td>{{tc.remarks}}</td></tr>
+    <tr><td class="label">17. Date of issue</td><td>{{certificate.issuedOn}}</td></tr>
+  </table>
+
+  <p class="small muted" style="margin-top: 14px;">Certified that the above information is in accordance with the school admission register.</p>
+
+  <table class="sign">
+    <tr>
+      <td style="width: 30%;">Prepared by</td>
+      <td class="gap"></td>
+      <td style="width: 28%;">Seal</td>
+      <td class="gap"></td>
+      <td style="width: 30%;">Principal</td>
+    </tr>
+  </table>
+</div>

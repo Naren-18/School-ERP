@@ -33,6 +33,11 @@ public final class AmountInWords {
 		return out.append(" Only").toString();
 	}
 
+	/** 2016 → "Two Thousand Sixteen" (Indian grouping for large numbers). */
+	public static String number(long n) {
+		return n == 0 ? "Zero" : words(n);
+	}
+
 	private static String words(long n) {
 		StringBuilder sb = new StringBuilder();
 		long crore = n / 1_00_00_000;

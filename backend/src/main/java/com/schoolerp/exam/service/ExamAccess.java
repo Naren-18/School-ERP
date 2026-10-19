@@ -41,6 +41,13 @@ class ExamAccess {
 		}
 	}
 
+	/** Remarks and co-scholastic grades: principal, admin, or the section's class teacher. */
+	void requireNotesEntry(Section section) {
+		if (!isAdminLike() && !CurrentUser.get().userId().equals(section.getClassTeacherId())) {
+			throw new NotFoundException("Section");
+		}
+	}
+
 	/** Sections whose results the user may see (taught or class-teacher), or null for all. */
 	Set<Long> resultSectionIds() {
 		return isAdminLike() ? null : teacherScope.sectionIdsFor(CurrentUser.get().userId());

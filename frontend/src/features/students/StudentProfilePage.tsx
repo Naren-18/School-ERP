@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  App, Button, Card, DatePicker, Descriptions, Empty, Flex, Form, Input, InputNumber, Modal, Result, Skeleton, Space,
+  App, Button, Card, DatePicker, Descriptions, Flex, Form, Input, InputNumber, Modal, Result, Skeleton, Space,
   Table, Tabs, Tag, Typography,
 } from 'antd'
 import { EditOutlined, LogoutOutlined, PhoneOutlined, SwapOutlined, UserAddOutlined } from '@ant-design/icons'
@@ -16,6 +16,7 @@ import { API_DATE_FORMAT, DATE_FORMAT, formatDate } from '../../utils/format'
 import { StudentAttendanceTab } from '../attendance/StudentAttendanceTab'
 import { StudentFeesTab } from '../fees/StudentFeesTab'
 import { StudentMarksTab } from '../exams/StudentMarksTab'
+import { StudentCertificatesTab } from '../certificates/StudentCertificatesTab'
 import { useYears } from '../settings/queries'
 import { CATEGORIES, ENROLLMENT_STATUS, GENDERS, RELATIONS, STUDENT_STATUS, labelOf } from './labels'
 import { SectionSelect } from './SectionSelect'
@@ -130,11 +131,15 @@ export function StudentProfilePage() {
             ...(me?.school.modules.exams && hasAnyRole(TEACHING)
               ? [{ key: 'marks', label: 'Marks', children: <StudentMarksTab studentId={s.id} /> }]
               : []),
-            {
-              key: 'certificates',
-              label: 'Certificates',
-              children: <Empty description="Certificates will appear here once the module is set up." />,
-            },
+            ...(me?.school.modules.certificates && hasAnyRole(PRINCIPAL_ADMIN)
+              ? [
+                  {
+                    key: 'certificates',
+                    label: 'Certificates',
+                    children: <StudentCertificatesTab studentId={s.id} studentName={s.fullName} status={s.status} />,
+                  },
+                ]
+              : []),
           ]}
         />
       </Card>

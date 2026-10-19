@@ -194,15 +194,15 @@ Tests:
 ## Phase 7 — Certificates
 
 Backend:
-- [ ] Default templates per school for BONAFIDE and TC (seeded, editable HTML with placeholders `{{student.fullName}}`, `{{school.name}}`, etc.)
-- [ ] Issue certificate: serial number per school+type, snapshot data into `issued_certificate.data`, generate PDF
-- [ ] Issuing a TC sets student status `TC_ISSUED`
-- [ ] Re-download previously issued certificates
+- [x] Default templates per school for BONAFIDE and TC (seeded, editable HTML with placeholders `{{student.fullName}}`, `{{school.name}}`, etc.)
+- [x] Issue certificate: serial number per school+type, snapshot data into `issued_certificate.data`, generate PDF
+- [x] Issuing a TC sets student status `TC_ISSUED`
+- [x] Re-download previously issued certificates
 
 Frontend:
-- [ ] Issue certificate dialog from student profile (type, purpose, preview)
-- [ ] Certificates register (list, filter, re-download)
-- [ ] Template editor (textarea + live preview is enough for MVP)
+- [x] Issue certificate dialog from student profile (type, purpose, preview)
+- [x] Certificates register (list, filter, re-download)
+- [x] Template editor (textarea + live preview is enough for MVP)
 
 **Acceptance:** Issue a bonafide and a TC; both PDFs carry the school's own logo and numbering.
 
@@ -229,6 +229,7 @@ Frontend:
   1. State board, Telugu medium (TS CCE grading, FA1–4/SA1–2, Telugu/Hindi/English)
   2. CBSE, English medium (9-point grading, Term 1/Term 2)
   3. State board, English medium (different fee structure, transport fee head)
+- [ ] Seed logos as **PNG, not SVG**, so they print on receipts, report cards and certificates (openhtmltopdf embeds PNG/JPEG only; dev seed SVGs are skipped in PDFs)
 - [ ] Each: current year, Nursery–Class 10, 2 sections each, ~300–500 students with realistic Telugu/Indian names, guardians, phone numbers (fake, e.g. 9xxxxxxxxx pattern)
 - [ ] 2 months of attendance history, fee payments with realistic partial dues, one published exam with marks, a few issued certificates
 - [ ] Logins per school: principal, admin, accountant, 2 teachers (documented in README; password from env)

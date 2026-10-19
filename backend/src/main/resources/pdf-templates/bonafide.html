@@ -1,0 +1,37 @@
+<div class="border">
+  <div class="header">
+    {{{school.logo}}}
+    <h1>{{school.name}}</h1>
+    <div class="muted small">{{school.address}}</div>
+    <div class="muted small">{{school.phone}}   {{school.email}}</div>
+  </div>
+
+  <table>
+    <tr>
+      <td>No. <b>{{certificate.serialNo}}</b></td>
+      <td class="right">Date: <b>{{certificate.issuedOn}}</b></td>
+    </tr>
+  </table>
+
+  <div class="title">BONAFIDE CERTIFICATE</div>
+
+  <p style="text-align: justify; line-height: 2;">
+    This is to certify that <b>{{student.fullName}}</b>, {{student.sonDaughter}} of
+    <b>{{student.fatherName}}</b>, bearing admission number <b>{{student.admissionNo}}</b>, is a bonafide
+    student of this school, studying in <b>{{student.class}}</b> during the academic year
+    <b>{{student.academicYear}}</b>. According to our records, {{student.hisHer}} date of birth is
+    <b>{{student.dateOfBirth}}</b> ({{student.dateOfBirthInWords}}).
+  </p>
+
+  <p>This certificate is issued on request for the purpose of <b>{{certificate.purpose}}</b>.</p>
+
+  <table class="sign">
+    <tr>
+      <td style="width: 30%;">Seal</td>
+      <td class="gap"></td>
+      <td class="gap" style="width: 28%;"></td>
+      <td class="gap"></td>
+      <td style="width: 30%;">Principal</td>
+    </tr>
+  </table>
+</div>

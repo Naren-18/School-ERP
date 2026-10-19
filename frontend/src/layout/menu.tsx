@@ -3,7 +3,8 @@ import {
   BankOutlined, BookOutlined, CalendarOutlined, CarryOutOutlined, CheckSquareOutlined, ClusterOutlined, ControlOutlined, DashboardOutlined,
   ReadOutlined, RiseOutlined, ScheduleOutlined, SettingOutlined, SolutionOutlined, TeamOutlined, UnorderedListOutlined,
   UploadOutlined, UserAddOutlined, TableOutlined, PieChartOutlined, WalletOutlined, DollarOutlined, FileTextOutlined,
-  BarChartOutlined, ToolOutlined, ProfileOutlined, EditOutlined, TrophyOutlined,
+  BarChartOutlined, ToolOutlined, ProfileOutlined, EditOutlined, TrophyOutlined, CommentOutlined, SafetyCertificateOutlined,
+  FileProtectOutlined, FormOutlined,
 } from '@ant-design/icons'
 import type { Role } from '../api/auth'
 import type { Modules } from '../api/school'
@@ -73,7 +74,19 @@ export const MENU: readonly MenuEntry[] = [
     children: [
       { path: '/exams', label: 'Enter marks', icon: <EditOutlined />, roles: TEACHING },
       { path: '/exams/results', label: 'Results & report cards', icon: <TrophyOutlined />, roles: TEACHING },
+      { path: '/exams/remarks', label: 'Remarks & grades', icon: <CommentOutlined />, roles: TEACHING },
       { path: '/exams/setup', label: 'Exam setup', icon: <ToolOutlined />, roles: PRINCIPAL_ADMIN },
+    ],
+  },
+  {
+    path: '/certificates',
+    label: 'Certificates',
+    icon: <SafetyCertificateOutlined />,
+    roles: PRINCIPAL_ADMIN,
+    module: 'certificates',
+    children: [
+      { path: '/certificates', label: 'Register', icon: <FileProtectOutlined />, roles: PRINCIPAL_ADMIN },
+      { path: '/certificates/templates', label: 'Templates', icon: <FormOutlined />, roles: PRINCIPAL },
     ],
   },
   {

@@ -175,3 +175,40 @@ export const examsApi = {
 
 export const resultSections = (academicYearId?: number) =>
   data(api.get<Section[]>('/exams/result-sections', { params: { academicYearId } }))
+
+export interface CoScholasticArea {
+  id: number
+  name: string
+  displayOrder: number
+}
+
+export interface NoteRow {
+  enrollmentId: number
+  studentId: number
+  rollNo: number | null
+  fullName: string
+  remark: string | null
+  /** area id → grade */
+  grades: Record<string, string>
+}
+
+export interface NoteSheet {
+  examId: number
+  examName: string
+  sectionId: number
+  sectionLabel: string
+  areas: CoScholasticArea[]
+  editable: boolean
+  lockedReason: string | null
+  rows: NoteRow[]
+}
+
+export const reportCardApi = {
+  areas: () => data(api.get<CoScholasticArea[]>('/exams/co-scholastic-areas')),
+  saveArea: (id: number | null, body: { name: string; displayOrder?: number }) =>
+    data(id ? api.put<CoScholasticArea>(`/exams/co-scholastic-areas/${id}`, body) : api.post<CoScholasticArea>('/exams/co-scholastic-areas', body)),
+  deleteArea: (id: number) => api.delete(`/exams/co-scholastic-areas/${id}`),
+  notes: (examId: number, sectionId: number) => data(api.get<NoteSheet>(`/exams/${examId}/notes`, { params: { sectionId } })),
+  saveNotes: (examId: number, sectionId: number, entries: { enrollmentId: number; remark: string | null; grades: Record<string, string> }[]) =>
+    data(api.put<NoteSheet>(`/exams/${examId}/notes`, { entries }, { params: { sectionId } })),
+}

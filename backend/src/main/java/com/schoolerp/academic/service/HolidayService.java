@@ -1,6 +1,9 @@
 package com.schoolerp.academic.service;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,6 +12,8 @@ import com.schoolerp.academic.dto.HolidayDto;
 import com.schoolerp.academic.entity.AcademicYear;
 import com.schoolerp.academic.entity.Holiday;
 import com.schoolerp.academic.repository.HolidayRepository;
+import com.schoolerp.audit.entity.AuditAction;
+import com.schoolerp.audit.service.AuditService;
 import com.schoolerp.common.error.BadRequestException;
 import com.schoolerp.common.error.ConflictException;
 import com.schoolerp.common.error.NotFoundException;
@@ -20,9 +25,16 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class HolidayService {
 
+	private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+
 	private final HolidayRepository holidays;
 
 	private final AcademicYearService yearService;
+
+	/** Empty when the attendance module is not on the classpath (e.g. slice tests). */
+	private final List<HolidayAttendance> attendance;
+
+	private final AuditService audit;
 
 	@Transactional(readOnly = true)
 	public List<HolidayDto.Response> list(Long academicYearId) {
@@ -42,6 +54,7 @@ public class HolidayService {
 		if (holidays.existsBySchoolIdAndDate(TenantContext.require(), request.date())) {
 			throw new ConflictException("There is already a holiday on this date");
 		}
+		handleAttendance(request);
 		Holiday holiday = new Holiday();
 		apply(holiday, request);
 		return HolidayDto.Response.of(holidays.save(holiday));
@@ -54,6 +67,9 @@ public class HolidayService {
 		if (holidays.existsBySchoolIdAndDateAndIdNot(TenantContext.require(), request.date(), id)) {
 			throw new ConflictException("There is already a holiday on this date");
 		}
+		if (!holiday.getDate().equals(request.date())) {
+			handleAttendance(request);
+		}
 		apply(holiday, request);
 		return HolidayDto.Response.of(holiday);
 	}
@@ -61,6 +77,31 @@ public class HolidayService {
 	@Transactional
 	public void delete(Long id) {
 		holidays.delete(require(id));
+	}
+
+	/**
+	 * Attendance already marked on the new holiday's date: without a decision
+	 * the request is refused with the counts so the screen can ask; when told
+	 * to, the marks are removed (and audited) so they no longer count.
+	 */
+	private void handleAttendance(HolidayDto.Request request) {
+		LocalDate date = request.date();
+		for (HolidayAttendance a : attendance) {
+			HolidayAttendance.Marked marked = a.markedOn(date);
+			if (marked.students() == 0 || Boolean.FALSE.equals(request.clearAttendance())) {
+				continue;
+			}
+			if (request.clearAttendance() == null) {
+				throw new ConflictException(
+						"Attendance is already marked on %s for %d student%s in %d section%s".formatted(date.format(DMY),
+								marked.students(), marked.students() == 1 ? "" : "s", marked.sections(),
+								marked.sections() == 1 ? "" : "s"),
+						Map.of("attendanceStudents", marked.students(), "attendanceSections", marked.sections()));
+			}
+			int cleared = a.clear(date);
+			audit.log(AuditAction.DELETE, "attendance", null,
+					Map.of("date", date.toString(), "rows", cleared, "reason", "holiday: " + request.description().trim()));
+		}
 	}
 
 	private Holiday require(Long id) {

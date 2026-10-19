@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -26,5 +27,18 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
 			""", nativeQuery = true)
 	List<Long> markedSectionIds(@Param("schoolId") Long schoolId, @Param("date") LocalDate date,
 			@Param("sectionIds") Collection<Long> sectionIds);
+
+	long countBySchoolIdAndDate(Long schoolId, LocalDate date);
+
+	@Query(value = """
+			SELECT COUNT(DISTINCT e.section_id) FROM attendance a
+			JOIN enrollment e ON e.id = a.enrollment_id AND e.school_id = :schoolId
+			WHERE a.school_id = :schoolId AND a.att_date = :date
+			""", nativeQuery = true)
+	int countMarkedSections(@Param("schoolId") Long schoolId, @Param("date") LocalDate date);
+
+	@Modifying
+	@Query(value = "DELETE FROM attendance WHERE school_id = :schoolId AND att_date = :date", nativeQuery = true)
+	int deleteOnDate(@Param("schoolId") Long schoolId, @Param("date") LocalDate date);
 
 }

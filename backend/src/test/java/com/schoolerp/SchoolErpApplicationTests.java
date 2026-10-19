@@ -15,12 +15,12 @@ class SchoolErpApplicationTests extends IntegrationTest {
 	JdbcTemplate jdbc;
 
 	@Test
-	void flywayCreatesCoreSchema() {
+	void flywayCreatesTheSchema() {
 		Integer tables = jdbc.queryForObject("""
 				SELECT count(*) FROM information_schema.tables
 				WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history'
 				""", Integer.class);
-		assertThat(tables).isEqualTo(28);
+		assertThat(tables).isEqualTo(31); // V1: 28, V2: certificate_counter, co_scholastic_area, report_card_note
 	}
 
 	@Test

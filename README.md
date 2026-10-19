@@ -18,8 +18,9 @@ share one deployment; each school is fully isolated, with its own logins and dat
 | 4 | Attendance: mobile marking, monthly register, school summary | Done |
 | 5 | Fees: plans, dues, collection, receipts (PDF), cancellation, reports | Done |
 | 6 | Exams: grading scales, papers, marks entry, results, report cards (PDF) | Done |
-| 7 | Certificates | Next |
-| 8–11 | Dashboard, demo data, deployment, polish | Not started |
+| 7 | Certificates (bonafide, TC), editable templates, report card remarks and co-scholastic grades | Done |
+| 8 | School dashboard | Next |
+| 9–11 | Demo data, deployment, polish | Not started |
 
 ## Run locally
 
@@ -66,6 +67,10 @@ The sidebar shows only what your role allows.
 | Exam setup: grading scales, exams, papers, publish | ✔ | ✔ | — | — |
 | Enter marks | any section and subject | any section and subject | — | only their assigned subject in that section |
 | Results sheet, CSV, report cards (PDF), student Marks tab | all sections | all sections | — | sections they teach or class-teach |
+| Co-scholastic areas | ✔ | ✔ | — | — |
+| Remarks & co-scholastic grades | any section | any section | — | sections they class-teach |
+| Issue certificates, register, re-download | ✔ | ✔ | — | — |
+| Certificate and report card templates | ✔ | — | — | — |
 | Setup: years, classes, sections, subjects, class subjects, teacher assignments, holidays | ✔ | ✔ | — | — |
 | Setup: school profile and logo, modules and preferences, users | ✔ | — | — | — |
 
@@ -109,6 +114,8 @@ from the menu and its pages and APIs answer "not found".
   - Teachers mark only today, for sections they class-teach or teach a subject in.
   - Principal and admin can open any past school day (date picker, or `?date=` in
     the URL) and correct it.
+  - Adding a holiday on a day that already has attendance asks whether to **clear
+    those marks** (so the day doesn't count) or keep them.
 - **Monthly register:** students × days for a month with totals and percentage;
   **Export CSV**.
 - **Summary** (principal/admin): the day's attendance %, absent and on-leave counts,
@@ -170,6 +177,13 @@ Switch it on or off under **Setup → Modules & preferences**.
    - **Annual cards** combine every published exam with the weighted final.
    - Rank and attendance on the card follow **Setup → Modules & preferences → Report card**.
 6. **Student profile → Marks:** published exams of the year and the final result.
+7. **Co-scholastic grades and remarks:**
+   - Set up the areas under **Exam setup → Co-scholastic & report card** (Art, Sports, Discipline, …).
+   - The class teacher fills in **Exams → Remarks & grades**: an A/B/C per area and a
+     remark per student, for each exam. It locks when the exam is published.
+   - Both print on the report card; the annual card uses the last published exam's.
+8. **Report card template** (principal): **Edit report card template** opens an HTML
+   editor with a live preview, just like the certificate templates.
 
 Result rules:
 - Absent counts as 0 and fails that subject.
@@ -177,12 +191,36 @@ Result rules:
 - A subject that is not entered makes the result "Incomplete"; it is not counted as 0.
 - The final % is Σ(weightage × exam %) ÷ Σ weightage.
 
+### Certificates
+
+Switch it on or off under **Setup → Modules & preferences**.
+
+1. **Student profile → Certificates → Issue certificate:**
+   - **Bonafide** (students studying now), with a purpose.
+   - **Transfer certificate**: date and reason for leaving, conduct, promotion and
+     remarks. Issuing a TC marks an active student as left and sets the status to
+     **TC issued**. A TC can be issued only once.
+   - **Preview** shows the PDF first; **Issue** numbers it and opens it for printing.
+2. **Numbers** look like `SSV/BON/0001` and `SSV/TC/0001`: the certificate prefix from
+   preferences, the type, and a gap-free counter per school and type.
+3. **Certificates → Register:** every certificate issued, searchable by number,
+   student or admission no., with type and date filters. Any of them can be
+   downloaded again, exactly as issued.
+4. **Certificates → Templates** (principal):
+   - Edit the bonafide and TC wording in HTML. The live preview uses sample data,
+     and you can click a placeholder such as `{{student.fullName}}` to insert it.
+   - The editor refuses unknown placeholders and markup that won't print.
+   - **Reset to built-in** goes back to the default. Certificates already issued keep
+     the version they were printed with.
+5. **The logo prints only when it is a PNG, JPEG or WebP**, uploaded under School profile.
+   The dev seed's SVG logos don't print.
+
 ## Testing
 
 ### Automated
 
 ```sh
-cd backend && ./mvnw clean test       # 110 tests; needs Docker running (Testcontainers)
+cd backend && ./mvnw clean test       # 117 tests; needs Docker running (Testcontainers)
 cd frontend && npm run build && npm run lint
 ```
 
@@ -204,7 +242,13 @@ records.
 6. As principal, open **Exams → Results & report cards** for FA1 · Class 5 – A (demo marks
    are already entered and FA1 is published) and press **All report cards**. SA1 has marks
    in draft: publish it under Exam setup and the student **Marks** tab shows the weighted final.
-7. As principal, deactivate that teacher. Their open session is signed out on the
+   The FA1 cards show co-scholastic grades and the class teacher's remark (demo data).
+7. As principal, open a student in Class 5 – A → **Certificates → Issue certificate** and
+   issue a bonafide (Preview first). **Certificates → Register** lists it next to the demo
+   `SSV/BON/0001` and `SSV/TC/0001`. Under **Certificates → Templates**, change a word and
+   watch the live preview.
+8. Add a holiday on a day that has attendance: the page asks whether to clear that day's marks.
+9. As principal, deactivate that teacher. Their open session is signed out on the
    next click.
 
 ### Look at the data directly
@@ -231,12 +275,14 @@ docker exec -it school-erp-db psql -U school -d school_erp
 backend/    Spring Boot 4 API (Java 21, Maven)
   src/main/java/com/schoolerp/<module>/    controller · service · repository · entity · dto
   src/main/resources/db/migration/         Flyway migrations (V1 is never edited)
+  src/main/resources/pdf-templates/        built-in certificate and report card templates
   src/test/java/…                          integration tests (Testcontainers) and unit tests
 frontend/   React 19 + Vite + TypeScript + Ant Design
   src/api/        typed API clients (one axios instance)
   src/auth/       auth context, guards
   src/layout/     app shell, sidebar menu, branding theme
-  src/features/   pages per module (auth, dashboard, settings, students)
+  src/features/   pages per module (auth, dashboard, settings, students, attendance, fees, exams, certificates)
   src/components/ shared UI
+  src/utils/      formatting (DD-MM-YYYY, ₹), CSV export, file download, PDF in a new tab
 docker-compose.yml   local Postgres
 ```

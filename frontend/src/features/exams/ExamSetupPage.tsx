@@ -6,6 +6,7 @@ import {
 } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
+import { CoScholasticTab } from './CoScholasticTab'
 import { useAcademicQueries } from './useAcademicQueries'
 import { errorMessage } from '../../api/client'
 import { examsApi, type Exam, type GradingScale, type Paper } from '../../api/exams'
@@ -23,6 +24,7 @@ export function ExamSetupPage() {
           items={[
             { key: 'exams', label: 'Exams', children: <ExamsTab /> },
             { key: 'scales', label: 'Grading scales', children: <ScalesTab /> },
+            { key: 'co', label: 'Co-scholastic & report card', children: <CoScholasticTab /> },
           ]}
         />
       </Card>

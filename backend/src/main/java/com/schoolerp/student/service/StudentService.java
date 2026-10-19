@@ -2,6 +2,7 @@ package com.schoolerp.student.service;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -134,6 +135,35 @@ public class StudentService {
 		details.put("leftOn", request.leftOn().toString());
 		audit.log(AuditAction.STATUS_CHANGE, ENTITY, student.getId(), details);
 		return detail(student);
+	}
+
+	/**
+	 * Issuing a TC: an active student is marked as left on {@code leftOn}
+	 * (enrollment closed, like {@link #markLeft}); a student who already left
+	 * keeps their leaving date. Either way the status becomes TC_ISSUED.
+	 */
+	@Transactional
+	public void markTcIssued(Long id, LocalDate leftOn, String reason) {
+		Student student = require(id);
+		if (student.getStatus() == Student.Status.TC_ISSUED) {
+			throw new ConflictException("A TC was already issued to this student");
+		}
+		if (student.getStatus() == Student.Status.ACTIVE) {
+			if (leftOn == null || leftOn.isBefore(student.getAdmissionDate())) {
+				throw new BadRequestException("The leaving date cannot be before the admission date");
+			}
+			student.setLeftOn(leftOn);
+			student.setLeavingReason(reason);
+			enrollments.closeActive(student.getId(), leftOn);
+		}
+		else if (student.getLeavingReason() == null && reason != null) {
+			student.setLeavingReason(reason);
+		}
+		student.setStatus(Student.Status.TC_ISSUED);
+		Map<String, Object> details = new LinkedHashMap<>();
+		details.put("status", "TC_ISSUED");
+		details.put("leftOn", String.valueOf(student.getLeftOn()));
+		audit.log(AuditAction.STATUS_CHANGE, ENTITY, student.getId(), details);
 	}
 
 	/**

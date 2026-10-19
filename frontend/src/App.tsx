@@ -28,6 +28,10 @@ import { ReceiptsPage } from './features/fees/ReceiptsPage'
 import { ExamSetupPage } from './features/exams/ExamSetupPage'
 import { MarksEntryPage } from './features/exams/MarksEntryPage'
 import { ResultsPage } from './features/exams/ResultsPage'
+import { RemarksPage } from './features/exams/RemarksPage'
+import { TemplateEditor } from './features/certificates/TemplateEditor'
+import { CertificatesPage } from './features/certificates/CertificatesPage'
+import { CertificateTemplatesPage } from './features/certificates/CertificateTemplatesPage'
 import { AppShell } from './layout/AppShell'
 import { BrandTheme } from './layout/BrandTheme'
 import { FEE_STAFF, PRINCIPAL, PRINCIPAL_ADMIN, TEACHING } from './layout/menu'
@@ -92,6 +96,25 @@ export default function App() {
             <Route index element={only(TEACHING, <MarksEntryPage />)} />
             <Route path="results" element={only(TEACHING, <ResultsPage />)} />
             <Route path="setup" element={only(PRINCIPAL_ADMIN, <ExamSetupPage />)} />
+            <Route path="remarks" element={only(TEACHING, <RemarksPage />)} />
+            <Route
+              path="template"
+              element={only(
+                PRINCIPAL,
+                <TemplateEditor type="REPORT_CARD" subtitle="Used for every report card printed from now on, for every exam and the annual card." />,
+              )}
+            />
+          </Route>
+          <Route
+            path="certificates"
+            element={
+              <RequireModule module="certificates">
+                <Outlet />
+              </RequireModule>
+            }
+          >
+            <Route index element={only(PRINCIPAL_ADMIN, <CertificatesPage />)} />
+            <Route path="templates" element={only(PRINCIPAL, <CertificateTemplatesPage />)} />
           </Route>
           <Route path="settings">
             <Route index element={<Navigate to="years" replace />} />

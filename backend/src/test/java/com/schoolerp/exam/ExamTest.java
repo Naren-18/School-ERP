@@ -190,6 +190,73 @@ class ExamTest extends StudentTestSupport {
 			.andExpect(jsonPath("$.finalResult.passed").value(true));
 	}
 
+	private static String pdfText(byte[] pdf) throws Exception {
+		try (var doc = org.apache.pdfbox.Loader.loadPDF(pdf)) {
+			return new org.apache.pdfbox.text.PDFTextStripper().getText(doc);
+		}
+	}
+
+	@Test
+	void remarksAndCoScholasticGradesPrintThroughTheTemplate() throws Exception {
+		long art = idOf(postAs(p, "/api/v1/exams/co-scholastic-areas", "{\"name\":\"Art Education\",\"displayOrder\":1}")
+			.andExpect(status().isCreated()));
+		postAs(p, "/api/v1/exams/co-scholastic-areas", "{\"name\":\"art education\"}").andExpect(status().isConflict());
+		postAs(mathsTeacher, "/api/v1/exams/co-scholastic-areas", "{\"name\":\"Sports\"}").andExpect(status().isForbidden());
+
+		// Section B has a class teacher; only they (and principal/admin) write its remarks.
+		TestUser classTeacher = fixtures.user(school, "ct", Role.TEACHER);
+		long sectionB = academic.section(school, setup.yearId(), setup.classId(), "B", classTeacher.id());
+		admitOk(p, "E9", "Devi", sectionB);
+		String notesUrl = "/api/v1/exams/" + exam + "/notes?sectionId=" + sectionB;
+		String sheet = getAs(classTeacher, notesUrl).andExpect(status().isOk())
+			.andExpect(jsonPath("$.areas.length()").value(1))
+			.andExpect(jsonPath("$.editable").value(true))
+			.andReturn().getResponse().getContentAsString();
+		long devi = JsonPath.<Number>read(sheet, "$.rows[0].enrollmentId").longValue();
+		String body = """
+				{"entries":[{"enrollmentId":%d,"remark":"Reads well; neat handwriting.","grades":{"%d":"a"}}]}"""
+			.formatted(devi, art);
+		putAs(mathsTeacher, notesUrl, body).andExpect(status().isNotFound());
+		getAs(classTeacher, "/api/v1/exams/" + exam + "/notes?sectionId=" + setup.sectionId()).andExpect(status().isNotFound());
+		putAs(classTeacher, notesUrl, body).andExpect(status().isOk())
+			.andExpect(jsonPath("$.rows[0].remark").value("Reads well; neat handwriting."))
+			.andExpect(jsonPath("$.rows[0].grades['" + art + "']").value("A"));
+
+		String marks = "/api/v1/exams/papers/%d/marks?sectionId=" + sectionB;
+		putAs(p, marks.formatted(maths), "{\"entries\":[{\"enrollmentId\":%d,\"marks\":40,\"absent\":false}]}".formatted(devi));
+		putAs(p, marks.formatted(english), "{\"entries\":[{\"enrollmentId\":%d,\"marks\":35,\"absent\":false}]}".formatted(devi));
+		postAs(p, "/api/v1/exams/{id}/publish", null, exam);
+		putAs(classTeacher, notesUrl, body).andExpect(status().isConflict());
+
+		String card = pdfText(getAs(classTeacher, "/api/v1/exams/report-cards.pdf?sectionId={s}&examId={e}", sectionB, exam)
+			.andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+		assertThat(card).contains("Devi Reddy", "Mathematics", "Art Education", "Reads well; neat handwriting.");
+		String annual = pdfText(getAs(p, "/api/v1/exams/report-cards.pdf?sectionId={s}", sectionB)
+			.andReturn().getResponse().getContentAsByteArray());
+		assertThat(annual).contains("Annual Progress Report", "Reads well; neat handwriting.");
+
+		// The school's own report card template.
+		getAs(p, "/api/v1/exams/report-card-template").andExpect(jsonPath("$.custom").value(false))
+			.andExpect(jsonPath("$.blocks['coScholastic.table']").exists());
+		putAs(p, "/api/v1/exams/report-card-template", "{\"html\":\"<p>{{marks.table}}</p>\"}")
+			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.detail", containsString("three braces")));
+		putAs(p, "/api/v1/exams/report-card-template",
+				"{\"html\":\"<h2>Our card for {{student.fullName}}</h2>{{{marks.table}}}<p>{{teacher.remark}}</p>\"}")
+			.andExpect(status().isOk()).andExpect(jsonPath("$.custom").value(true));
+		assertThat(pdfText(getAs(p, "/api/v1/exams/report-cards.pdf?sectionId={s}&examId={e}", sectionB, exam)
+			.andReturn().getResponse().getContentAsByteArray())).contains("Our card for Devi Reddy", "Reads well");
+		postAs(p, "/api/v1/exams/report-card-template/preview", "{\"html\":\"<p>{{student.fullName}}</p>\"}")
+			.andExpect(status().isOk());
+		getAs(mathsTeacher, "/api/v1/exams/report-card-template").andExpect(status().isForbidden());
+		deleteAs(p, "/api/v1/exams/report-card-template").andExpect(jsonPath("$.custom").value(false));
+
+		// Another school sees none of it.
+		TestUser other = fixtures.twoSchools().a().principal();
+		getAs(other, "/api/v1/exams/co-scholastic-areas").andExpect(jsonPath("$.length()").value(0));
+		getAs(other, notesUrl).andExpect(status().isNotFound());
+		deleteAs(other, "/api/v1/exams/co-scholastic-areas/{id}", art).andExpect(status().isNotFound());
+	}
+
 	@Test
 	void gradingScaleRulesAndRoles() throws Exception {
 		postAs(p, "/api/v1/exams/grading-scales/presets/CBSE_9_POINT", null).andExpect(status().isConflict());

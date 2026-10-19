@@ -16,7 +16,9 @@ public final class HolidayDto {
 	public record Request(
 			@NotNull(message = "Academic year is required") Long academicYearId,
 			@NotNull(message = "Date is required") LocalDate date,
-			@NotBlank(message = "Description is required") @Size(max = 100) String description) {
+			@NotBlank(message = "Description is required") @Size(max = 100) String description,
+			/** When attendance is already marked that day: true clears it, false keeps it, null asks (409). */
+			Boolean clearAttendance) {
 	}
 
 	public record Response(Long id, Long academicYearId, LocalDate date, String description) {

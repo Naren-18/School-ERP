@@ -133,4 +133,27 @@ public final class ExamDto {
 			ResultCalculator.FinalResult finalResult, Map<Long, String> subjectNames) {
 	}
 
+	public record AreaRequest(@NotBlank(message = "Name is required") @Size(max = 60) String name,
+			@Min(0) @Max(999) Integer displayOrder) {
+	}
+
+	public record Area(Long id, String name, int displayOrder) {
+	}
+
+	/** One student's remark and co-scholastic grades (area id → grade, e.g. A). */
+	public record NoteRow(Long enrollmentId, Long studentId, Integer rollNo, String fullName, String remark,
+			Map<Long, String> grades) {
+	}
+
+	public record NoteSheet(Long examId, String examName, Long sectionId, String sectionLabel, List<Area> areas,
+			boolean editable, String lockedReason, List<NoteRow> rows) {
+	}
+
+	public record NoteEntry(@NotNull Long enrollmentId, @Size(max = 300) String remark,
+			Map<Long, @Size(max = 5) String> grades) {
+	}
+
+	public record SaveNotes(@NotNull @Size(max = 200) List<@Valid NoteEntry> entries) {
+	}
+
 }

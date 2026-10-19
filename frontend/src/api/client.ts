@@ -13,7 +13,16 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
+  async (error: AxiosError) => {
+    // PDF requests use responseType 'blob', so their error body arrives as a Blob: read it back as ProblemDetail.
+    const body = error.response?.data
+    if (body instanceof Blob && body.type.includes('json')) {
+      try {
+        error.response!.data = JSON.parse(await body.text())
+      } catch {
+        // keep the Blob; errorMessage falls back to a generic message
+      }
+    }
     const isLogin = error.config?.url === '/auth/login'
     if (error.response?.status === 401 && !isLogin) {
       tokenStore.clear()
@@ -53,4 +62,12 @@ export function fieldErrors(error: unknown): Record<string, string> {
 
 export function isNotFound(error: unknown): boolean {
   return axios.isAxiosError(error) && error.response?.status === 404
+}
+
+/** Extra properties of a failed request's ProblemDetail (e.g. counts the screen can act on). */
+export function problemProperty<T>(error: unknown, name: string): T | undefined {
+  if (axios.isAxiosError<Record<string, unknown>>(error)) {
+    return error.response?.data?.[name] as T | undefined
+  }
+  return undefined
 }

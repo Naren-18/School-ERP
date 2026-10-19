@@ -71,7 +71,10 @@ export interface Holiday {
   date: string
   description: string
 }
-export type HolidayInput = Omit<Holiday, 'id'>
+export type HolidayInput = Omit<Holiday, 'id'> & {
+  /** When attendance is already marked that day: true clears it, false keeps it; omitted, the server asks (409). */
+  clearAttendance?: boolean
+}
 
 const data = <T,>(p: Promise<{ data: T }>) => p.then((r) => r.data)
 

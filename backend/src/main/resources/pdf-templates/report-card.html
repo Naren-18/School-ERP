@@ -1,0 +1,47 @@
+<div class="header" style="text-align: left;">
+  <table>
+    <tr>
+      <td style="width: 70px;">{{{school.logo}}}</td>
+      <td>
+        <h1>{{school.name}}</h1>
+        <div class="muted small">{{school.address}}</div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="title">{{report.title}}</div>
+
+<table class="fields">
+  <tr>
+    <td>Name <b>{{student.fullName}}</b></td>
+    <td>Adm. no. <b>{{student.admissionNo}}</b></td>
+  </tr>
+  <tr>
+    <td>Class &amp; section <b>{{student.class}}</b> · Roll <b>{{student.rollNo}}</b></td>
+    <td>Date of birth <b>{{student.dateOfBirth}}</b></td>
+  </tr>
+  <tr>
+    <td colspan="2">Parent / guardian <b>{{student.guardianName}}</b></td>
+  </tr>
+</table>
+
+<div style="margin-top: 10px;">{{{marks.table}}}</div>
+
+<div style="margin-top: 10px;">{{{result.summary}}}</div>
+
+<div style="margin-top: 10px;">{{{coScholastic.table}}}</div>
+
+{{{attendance.line}}}
+
+{{{remark.line}}}
+
+<table class="sign">
+  <tr>
+    <td style="width: 30%;">Class teacher<br/><span class="small muted">{{classTeacher.name}}</span></td>
+    <td class="gap"></td>
+    <td style="width: 28%;">Principal</td>
+    <td class="gap"></td>
+    <td style="width: 30%;">Parent</td>
+  </tr>
+</table>

@@ -134,6 +134,44 @@ class AttendanceTest extends StudentTestSupport {
 	}
 
 	@Test
+	void holidayOnAMarkedDayAsksThenClearsOrKeepsTheMarks() throws Exception {
+		save(principal, TODAY, Map.of("Asha", "A")).andExpect(status().isOk());
+		// Another school marked the same day: never counted or cleared from here.
+		TestSchool other = fixtures.school("Other Attendance School");
+		fixtures.setWeekOffDays(other);
+		Setup otherSetup = academic.todaySetup(other);
+		admitOk(other.principal(), "O1", "Ravi", otherSetup.sectionId());
+		String otherSheet = "/api/v1/attendance/sections/" + otherSetup.sectionId() + "?date={d}";
+		String otherRows = JsonPath.<List<Map<String, Object>>>read(
+				getAs(other.principal(), otherSheet, TODAY).andReturn().getResponse().getContentAsString(), "$.students")
+			.stream()
+			.map(s -> "{\"enrollmentId\":%s,\"status\":\"P\"}".formatted(s.get("enrollmentId")))
+			.collect(Collectors.joining(","));
+		putAs(other.principal(), otherSheet, "{\"entries\":[" + otherRows + "]}", TODAY).andExpect(status().isOk());
+
+		String holiday = """
+				{"academicYearId":%d,"date":"%s","description":"Rain holiday"%s}""";
+		postAs(principal, "/api/v1/holidays", holiday.formatted(setup.yearId(), TODAY, ""))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.attendanceStudents").value(3))
+			.andExpect(jsonPath("$.attendanceSections").value(1))
+			.andExpect(jsonPath("$.detail", containsString("3 students in 1 section")));
+		getAs(principal, "/api/v1/holidays").andExpect(jsonPath("$.length()").value(0));
+
+		long id = idOf(postAs(principal, "/api/v1/holidays",
+				holiday.formatted(setup.yearId(), TODAY, ",\"clearAttendance\":true")).andExpect(status().isCreated()));
+		getAs(principal, sheetUrl() + "?date={d}", TODAY).andExpect(jsonPath("$.marked").value(false));
+		getAs(other.principal(), otherSheet, TODAY).andExpect(jsonPath("$.marked").value(true));
+
+		// Keeping the marks is a choice too.
+		deleteAs(principal, "/api/v1/holidays/{id}", id);
+		save(principal, TODAY, Map.of()).andExpect(status().isOk());
+		postAs(principal, "/api/v1/holidays", holiday.formatted(setup.yearId(), TODAY, ",\"clearAttendance\":false"))
+			.andExpect(status().isCreated());
+		getAs(principal, sheetUrl() + "?date={d}", TODAY).andExpect(jsonPath("$.marked").value(true));
+	}
+
+	@Test
 	void teachersMarkOnlyTheirSectionsAndOnlyToday() throws Exception {
 		TestUser classTeacher = fixtures.user(school, "ct", Role.TEACHER);
 		TestUser subjectTeacher = fixtures.user(school, "st", Role.TEACHER);

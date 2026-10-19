@@ -1,6 +1,6 @@
 # Architecture
 
-How the School ERP is built, as of the end of **Phase 5** (fees and receipts).
+How the School ERP is built, as of the end of **Phase 7** (certificates and templates).
 For the rules that every change must follow, see [`CLAUDE.md`](CLAUDE.md); for the phase
 plan, see [`PLAN.md`](PLAN.md); for running it, see [`README.md`](README.md).
 
@@ -63,7 +63,7 @@ Package root `com.schoolerp`. Each module has `controller/ service/ repository/ 
 
 | Module | Responsibility (so far) |
 |---|---|
-| `common` | `BaseEntity`, `TenantEntity`; errors (`ApiException`, `NotFoundException` 404, `ConflictException` 409, `BadRequestException` 400, `GlobalExceptionHandler`); `PageResponse`; `crypto` (AES-GCM `FieldCipher`, `EncryptedStringConverter`, Aadhaar Verhoeff check); `csv` (RFC 4180 reader/writer) |
+| `common` | `BaseEntity`, `TenantEntity`; errors (`ApiException`, `NotFoundException` 404, `ConflictException` 409, `BadRequestException` 400, `GlobalExceptionHandler`); `PageResponse`; `crypto` (AES-GCM `FieldCipher`, `EncryptedStringConverter`, Aadhaar Verhoeff check); `csv` (RFC 4180 reader/writer); `money` (`AmountInWords`, Indian lakh/crore); `pdf` (`HtmlPdf`) |
 | `tenant` | `TenantContext` (ThreadLocal school id), `TenantIdResolver` (feeds the Hibernate filter), `TenantGuard` (404 unless the entity is this school's) |
 | `auth` | Users and roles, login, JWT, per-request session check, rate limiting, user management, staff picker, `Access` role expressions, security config |
 | `school` | School profile, typed settings (JSONB), logo upload, public branding, module toggles (`@RequiresModule` + `ModuleGuard`), dev seeder and `ProductionSafetyCheck` |
@@ -75,7 +75,9 @@ Package root `com.schoolerp`. Each module has `controller/ service/ repository/ 
 | `fee` | Fee heads, per-class installment plans (copy between years), student dues (created on `StudentEnrolledEvent`, or by "generate"), concessions, collection into gap-free receipts, cancellation, receipt PDF, collection/dues/class reports; behind `@RequiresModule(FEES)` |
 | `exam` | Grading scales and bands (CBSE/TS presets), exams per year with weightage, papers per class + subject ("apply to all"), marks entry (`ExamAccess` limits teachers), publish lock, `ResultCalculator` (pure, unit-tested), section result sheet, student year results, report card PDFs; behind `@RequiresModule(EXAMS)` |
 | `common.pdf` | `HtmlPdf`: shared openhtmltopdf rendering, DejaVu Sans fonts, escaping, ₹ formatting, embedded images (receipts and report cards) |
-| `certificate`, `dashboard` | Empty, filled in by Phases 7–8 |
+| `certificate` | Template mechanism shared with report cards (`TemplateType`, `TemplateFields`, `TemplateValues`, `TemplateDocument`, `TemplateService`: built-in default unless the school saved its own), issuing bonafide/TC with gap-free serials, data snapshot and stored PDF, register; behind `@RequiresModule(CERTIFICATES)` |
+| `common.template` | `Placeholders`: `{{value}}` (escaped) and `{{{block}}}` (app-built HTML), validation against an allowed list, forbidden markup |
+| `dashboard` | Empty, filled in by Phase 8 |
 
 ## 4. Tenant isolation (the most important design)
 
@@ -165,7 +167,7 @@ Errors anywhere → GlobalExceptionHandler → ProblemDetail
 
 ## 7. Data model in use
 
-The schema is `V1__core_schema.sql` (28 tables). It has never been edited after
+The schema is `V1__core_schema.sql` (28 tables) plus `V2__certificates_and_report_card_notes.sql` (3 tables). V1 has never been edited after
 running; changes would be new migrations. `ddl-auto=validate`, so Hibernate only
 checks the schema and never alters it. Tables in use so far:
 
@@ -196,6 +198,11 @@ checks the schema and never alters it. Tables in use so far:
 | `exam` | `Exam` | Per academic year; `display_order`, nullable `weightage`, `is_published` |
 | `exam_subject` | `ExamSubject` ("paper") | One per exam + class + subject; max and pass marks, optional date |
 | `mark` | `Mark` | One per paper + enrollment; `marks_obtained` null when absent, `is_absent`, `entered_by`, `updated_at`; no row = not entered |
+| `co_scholastic_area` (V2) | `CoScholasticArea` | Per school; name unique (case-insensitive) |
+| `report_card_note` (V2) | `ReportCardNote` | Per exam + enrollment: class teacher remark, `co_scholastic` JSONB (area id → grade) |
+| `certificate_template` | `CertificateTemplate` | `type` BONAFIDE / TC / REPORT_CARD; a row exists only once the school saves its own version |
+| `issued_certificate` | `IssuedCertificate` | Serial unique per school + type; `data` JSONB snapshot of every printed value; `pdf_url` = FileStorage key of the PDF |
+| `certificate_counter` (V2) | (plain SQL) | One row per school + type, locked `FOR UPDATE` |
 
 Foreign keys are mapped as plain `Long` ids, not JPA associations. Services batch-load
 related rows into maps. This keeps every query explicit and tenant-scoped, and avoids
@@ -288,6 +295,45 @@ timestamps `OffsetDateTime`. The JVM and JSON time zone is `Asia/Kolkata`.
     - collection by day and mode (cancelled receipts excluded)
     - dues per student, with overdue being past the due date
     - expected vs. collected per class
+- **Holiday on a marked day:** `HolidayService` asks the `HolidayAttendance` SPI (implemented by
+  attendance) how many students are marked on the date.
+  - With no decision in the request it returns 409 with `attendanceStudents` and `attendanceSections`
+    (`ApiException` properties become `ProblemDetail` properties), and the screen asks.
+  - `clearAttendance: true` deletes that school's marks for the day (audited); `false` keeps them.
+- **Templates** (certificates and report cards):
+  - Each school sees the built-in template (classpath `pdf-templates/*.html`) until it
+    saves its own; "reset" deletes the school's row.
+  - **Placeholders:** `{{value}}` is HTML-escaped. `{{{block}}}` is HTML built by the
+    app: the logo, marks and co-scholastic tables, result summary, optional lines.
+    No loops or conditions; anything repeated is a block.
+  - **Checked before saving or previewing:**
+    - every placeholder must be in `TemplateFields` for that type (with a hint when
+      the wrong number of braces is used)
+    - no `<script>`, `<iframe>`, `<object>`, `<embed>`, `<link>`, DOCTYPE, entities or
+      processing instructions
+    - at most 50,000 characters
+    - it must render with sample data, otherwise "not valid XHTML: …"
+  - `TemplateDocument` wraps the filled bodies with the page setup, the shared CSS
+    classes and the school colour. A `<style>` block in a template is moved into the head.
+  - **`HtmlPdf` loads only `data:` URIs** for every PDF (external-resource access
+    control, before and after URI resolution). An edited template therefore cannot
+    make the server fetch a URL (e.g. cloud metadata) or read a local file.
+- **Certificates:**
+  - **Rules:** a bonafide only for active students. A TC needs a leaving date and
+    reason when the student is still active. Issuing the TC runs
+    `StudentService.markTcIssued`: close the enrollment, set leaving details, set
+    status `TC_ISSUED`. A second TC is refused, naming the first one's number.
+  - **Serial** `PREFIX/BON|TC/0001` from `certificate_counter`, locked `FOR UPDATE`
+    in the issuing transaction, so it is gap-free like receipts.
+  - The printed values are snapshotted in `issued_certificate.data`, and the PDF is
+    stored at `schools/{id}/certificates/…`.
+  - **Re-download** serves the stored file. Only if that file is missing is it
+    rebuilt from the snapshot with the current template.
+  - **Preview** renders without taking a number. Issuing is audited (`ISSUE certificate`).
+- **Report card notes:** class teacher remark and A/B/C co-scholastic grades per
+  exam and student. Written by the section's class teacher or principal/admin;
+  locked when the exam is published. The annual card uses the last published exam's
+  notes.
 - **Exams:**
   - **Access** (`ExamAccess`):
     - Principal/admin can do everything.
@@ -355,6 +401,11 @@ Public: `POST /auth/login`, `GET /public/schools/{code}/branding`, `GET /public/
 | Exams | `GET /exams?academicYearId` · `GET /exams/{id}` · `POST` · `PUT /{id}` · `DELETE /{id}` · `POST /{id}/publish` · `POST /{id}/unpublish` | same |
 | Papers | `GET /exams/{id}/papers?classId` · `PUT /exams/{id}/papers` (upsert class + subject) · `POST /exams/{id}/papers/apply` · `DELETE /exams/papers/{paperId}` | same |
 | Marks | `GET /exams/{id}/entry-options` · `GET /exams/papers/{paperId}/marks?sectionId` · `PUT …/marks?sectionId` | principal/admin; teachers for their assigned subject + section |
+| Co-scholastic areas | `GET /exams/co-scholastic-areas` · `POST` · `PUT /{id}` · `DELETE /{id}` | read: principal/admin/teacher; write: principal/admin |
+| Remarks & grades | `GET /exams/{id}/notes?sectionId` · `PUT …/notes?sectionId` | principal/admin; the section's class teacher |
+| Report card template | `GET /exams/report-card-template` · `PUT` · `DELETE` (reset) · `POST …/preview` | principal |
+| Certificates | `GET /certificates?type&from&to&q&page&size` · `GET /certificates/{id}/pdf` · `GET /certificates/students/{id}` · `POST /certificates/students/{id}/preview` · `POST /certificates/students/{id}` (issue) | principal/admin |
+| Certificate templates | `GET /certificates/templates/{BONAFIDE\|TC}` · `PUT` · `DELETE` (reset) · `POST …/preview` | principal |
 | Results | `GET /exams/result-sections?academicYearId` · `GET /exams/{id}/results?sectionId` · `GET /exams/students/{id}/results?academicYearId` · `GET /exams/report-cards.pdf?sectionId&examId&studentId` | principal/admin; teachers for sections they teach or class-teach |
 
 Conventions:
@@ -372,12 +423,12 @@ Conventions:
 ```
 src/
   api/          client.ts (one axios instance: adds the JWT; 401 → /login; error helpers)
-                auth.ts school.ts academic.ts users.ts students.ts (typed endpoints)
+                auth.ts school.ts academic.ts users.ts students.ts attendance.ts fees.ts exams.ts certificates.ts (typed endpoints)
   auth/         tokenStore (memory + sessionStorage), AuthProvider/useAuth (me query),
-                guards (RequireAuth, RequireRole)
+                guards (RequireAuth, RequireRole, RequireModule)
   layout/       AppShell (sidebar + header, mobile drawer), menu.tsx (role/module filtered),
                 BrandTheme (school colour → Ant Design ConfigProvider)
-  features/     auth/ dashboard/ settings/ students/ attendance/ fees/ exams/   (pages + small feature components)
+  features/     auth/ dashboard/ settings/ students/ attendance/ fees/ exams/ certificates/   (pages + small feature components)
   components/   PageHeader, SchoolLogo, useFormErrors (backend field errors → form)
   utils/        format (DD-MM-YYYY, ₹ en-IN), download (save Blob), csv, openPdf (authed PDF in a new tab)
 ```
@@ -401,7 +452,8 @@ src/
     `/students/promotion`, `/students/import`
   - `/attendance` (`?section=&date=`), `/attendance/register`, `/attendance/today`
   - `/fees/collect` (`?student=`), `/fees/receipts`, `/fees/reports`, `/fees/setup`
-  - `/exams` (marks entry, `?exam=&paper=&section=`), `/exams/results` (`?exam=&section=`), `/exams/setup`
+  - `/exams` (marks entry, `?exam=&paper=&section=`), `/exams/results` (`?exam=&section=`), `/exams/remarks`, `/exams/setup`, `/exams/template`
+  - `/certificates` (register), `/certificates/templates` (`?type=TC`)
   - `/settings/{school,preferences,years,classes,subjects,class-subjects,assignments,holidays,users}`
 
   Every route has a role guard that matches its API.
@@ -429,7 +481,7 @@ Other settings:
 
 ## 12. Testing strategy
 
-- **110 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
+- **117 backend tests.** `./mvnw clean test` runs them against a real Postgres 16 in
   Testcontainers. One Spring context is shared, plus one extra for the module-guard
   probe.
 - **`IntegrationTest`** base class: MockMvc, request helpers (`getAs`, `postAs`,
@@ -462,11 +514,26 @@ Other settings:
     unpublish reopens, weighted final over published exams only, grading-scale rules
     (preset twice, must start at 0 %, in use), accountant refused, module off, School A
     vs B on every exam endpoint
+  - report card notes: class teacher only (other teacher and other section 404), grades
+    upper-cased, locked when published, printed on exam and annual cards, own template
+    printed, wrong braces refused, School A vs B
+  - certificates: preview without a number, serials /BON/0001 then 0002, stored PDF
+    text, register search, roles (admin issues, accountant and teacher refused), TC
+    needs a leaving date, TC sets TC_ISSUED and closes the enrollment, second TC and
+    bonafide after TC refused, TC for a student who already left, template rules
+    (unknown placeholder, bad XHTML, script, wrong braces), external image never
+    fetched, issued PDF unchanged after reset, admin cannot edit templates, module
+    off, School A vs B
+  - holiday on a marked day: asks (409 with counts), clears only this school's
+    marks, or keeps them
   - unit tests for Verhoeff, AES-GCM, CSV and `ResultCalculator` (grade boundaries such
     as 90.99 → A2 and 91 → A1, absent, incomplete, weighting, ranking)
-- **Frontend:** `tsc` and `oxlint` must be clean. Flows up to Phase 5 were checked by hand
-  in the browser. From Phase 6, acceptance is run through the API and the PDFs are
-  rendered and inspected.
+- **Frontend:** `tsc` and `oxlint` must be clean.
+- **Phase-end checks:**
+  - The acceptance flow is run through the API, and the PDFs are rendered and inspected.
+  - From Phase 7, every phase also ends with a browser check of its main flows at
+    desktop and ≈360px phone width (CLAUDE.md).
+  - Phase 7's browser check was done by hand by the product owner.
 
 ## 13. Decisions and deviations
 
@@ -493,7 +560,11 @@ Other settings:
 | One receipt per student per academic year | `fee_receipt` has one `enrollment_id` and `academic_year_id`; arrears from last year go on their own receipt |
 | Receipt lines have no `school_id` and are not a `TenantEntity` | The V1 table has no such column; lines are only reached through receipts already filtered by school |
 | Fee report CSVs are built in the browser from the report data | No extra endpoints; the data on screen is what is exported |
-| Report cards use one built-in layout themed per school, not a per-school editable HTML template (PLAN asked for a template) | Gets the demo printing now; the editable-template mechanism arrives with certificates in Phase 7 and report cards can move onto it |
+| Report cards and certificates share one template mechanism; a school's template is a row only once it edits it | No seeding for existing or new schools; "reset" is a delete; the default ships with the code |
+| Placeholders without loops or conditions; tables are app-built blocks | Simple enough for a principal to edit, and nothing in a template can run code |
+| Issued certificates keep the PDF file, not just the data | Re-downloads are identical even after the template or student details change |
+| Certificate and report card templates are principal-only | They are school settings (CLAUDE.md: admin does everything except settings and users) |
+| Co-scholastic grades are free text up to 5 characters (the screen offers A/B/C) | CBSE uses A/B/C; some state schools use other letters |
 | Grading presets are added with one click instead of being seeded into every school | Schools use one or the other; nothing to delete for the unused one |
 | `grading_band` has no `school_id` and is not a `TenantEntity` | The V1 table has no such column; bands are only read through scales already filtered by school |
 | Marks not entered are "incomplete", not 0 | A half-entered sheet must not show students as failing |
@@ -534,18 +605,16 @@ Other settings:
   section's register. A per-section history would need a separate placement history.
 - **Attendance changes are not in the audit log.** Only the latest change is kept,
   via `marked_by` and `marked_at`; earlier values are overwritten.
-- **Late holidays don't clear marks.** Declaring a holiday on a day that already has
-  attendance doesn't remove those marks, so they still count in totals.
 
 - **Seeded placeholder logos don't print.** The SVG data-URI logos of the dev schools are
   not embedded in PDFs (openhtmltopdf would need its SVG add-on); uploaded PNG/JPEG/WebP
-  logos are.
+  logos are. Phase 9 seeds PNG logos for this reason.
 - **No fee refunds or advance payments.** Money only goes against existing dues; a
   mistake is corrected by cancelling the receipt.
 
 - **Exams:**
-  - **No co-scholastic grades or teacher remarks on report cards yet.** `mark.remarks`
-    is stored but not shown.
+  - **Per-subject remarks are not printed.** `mark.remarks` is stored but not shown;
+    the class teacher's overall remark is.
   - **Marks changes are not audited one by one.** `entered_by` and `updated_at`
     are kept; publish is audited.
   - **Report card printing is synchronous.** A section of ~40 renders in about a
@@ -553,13 +622,21 @@ Other settings:
   - **Results include students who were promoted or detained**, but not those who
     left, because the roster is the enrollment in that year.
 
+- **Certificates:**
+  - **Only bonafide and TC.** Conduct and study certificates (in the V1 comment)
+    would be two more `TemplateType`s.
+  - **No cancelling or reissuing.** A TC issued by mistake needs a database fix.
+  - **No check on fee dues before a TC.** The TC does not show outstanding fees.
+  - **The template editor is a plain textarea.** The preview is a PDF in an iframe,
+    which phones may not display; it is a desktop task.
+
 ## 15. What's next
 
-Phase 7 is **certificates**:
-- per-school editable HTML templates (BONAFIDE, TC) with `{{placeholders}}`
-- issuing with a serial number per school and type, and a data snapshot
-- a TC sets the student to `TC_ISSUED`
-- the PDF goes through `HtmlPdf`
+Phase 8 is the **school dashboard**:
+- a role-aware `GET /api/v1/dashboard`: students by class, today's attendance % and
+  sections not marked, fees collected today and this month, outstanding dues, top
+  overdue classes, upcoming exams, recent admissions
+- one efficient query per widget, under 300 ms with demo data
+- stat cards and 2–3 charts
 
-Report cards can then move onto the same template mechanism. Phases 8–11 follow
-the order in `PLAN.md`.
+Phases 9–11 follow the order in `PLAN.md`. Phase 9 seeds PNG logos so they print.

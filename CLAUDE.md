@@ -138,6 +138,9 @@ Enforce with `@PreAuthorize` on controllers **and** ownership checks in services
   `ARCHITECTURE.md` (modules, API catalogue, data model in use, mechanisms,
   decisions, known limitations, "what's next") and the **Status** table in
   `README.md` (plus any new run/test/troubleshooting steps).
+- Every phase ends with a **browser check of its main flows at desktop and phone
+  width (≈ 360px)**, not only API tests: the acceptance flow plus each new page,
+  including any PDFs it produces. Keep it to the main flows; detail is covered by tests.
 - If a requirement is unclear or a rule here blocks you, stop and ask instead of guessing.
 - Prefer boring, readable code over clever code. No new libraries without a reason
   stated in the commit message.
