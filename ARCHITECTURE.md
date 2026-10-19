@@ -356,10 +356,14 @@ timestamps `OffsetDateTime`. The JVM and JSON time zone is `Asia/Kolkata`.
       via `MarksService.entryOptions` so the assignment rules apply).
   - **Queries:** `DashboardRepository` holds the native SQL; every table is filtered by
     `school_id`. There is one query per widget:
-    - students by class (ACTIVE enrollments of the current year)
-    - attendance per day for the last 14 days (same P + ½H rule as the attendance module)
-    - receipts per day, and month to date
-    - dues outstanding and overdue (same rules as the dues report)
+    - students by class with boys and girls (ACTIVE enrollments of the current year)
+    - attendance per day for the last 14 days, and per class this month (same P + ½H rule
+      as the attendance module)
+    - receipts per day, month to date, and per month of the academic year
+    - the year's receipts per payment mode, and per fee head (from the receipt lines)
+    - dues paid, outstanding and overdue (same rules as the dues report)
+    - the latest published exam's subject averages and pass rate (absent fails; no pass
+      marks means any marks pass, as in the results)
     - top 5 overdue classes
     - upcoming exams
     - recent admissions
@@ -370,9 +374,20 @@ timestamps `OffsetDateTime`. The JVM and JSON time zone is `Asia/Kolkata`.
     - the teacher's "marks to enter" covers only exams that have started
     - marks entry options use two grouped counts per exam instead of a class list per
       paper (before: about 1–1.8 s)
-  - **Charts** (Recharts): single series, one validated hue (`#2a78d6`, ≥ 3:1 on white),
-    hairline grid, hover tooltips, no legend (the card title names the series), dates
-    as DD-MM and amounts as compact ₹.
+  - **Charts** (Recharts), laid out as stat tiles, then part-to-whole donuts (today's
+    attendance, the year's fees collected / not yet due / overdue, payment modes, fee
+    heads), then trends (attendance line, fees per month or per day), then comparisons
+    across classes and subjects, then the to-do lists.
+    - Single-series charts: one validated hue (`#2a78d6`, ≥ 3:1 on white), no legend
+      (the card title names the series).
+    - Donuts and the boys/girls bars: the categorical slots in `palette.ts`, in a fixed
+      order checked for colour-blind separation. A donut has at most 6 slices (fee heads
+      past 5 fold into "Other") and a legend with each value and share, so colour never
+      carries meaning alone. Status colours (red/green) are not used for slices: red and
+      green blur together for the most common colour blindness.
+    - Hairline grid, hover tooltips, 2px surface gaps between slices and segments, dates
+      as DD-MM, amounts as compact ₹ (₹13.6L).
+
 - **Certificates:**
   - **Rules:** a bonafide only for active students. A TC needs a leaving date and
     reason when the student is still active. Issuing the TC runs
@@ -709,7 +724,10 @@ Other settings:
     which phones may not display; it is a desktop task.
 
 - **Dashboard:**
-  - **Fixed 14-day window.** The charts have no date picker yet.
+  - **Fixed windows.** Daily charts cover 14 days, class attendance this month, fees the
+    current year; there is no date picker yet.
+  - **Subject averages mix classes.** A subject's average covers every class that wrote
+    it, so Class 1 and Class 10 Mathematics count together.
   - **Charts are light-only.** The app has no dark mode yet.
   - **The teacher's "marks to enter" checks every unpublished exam's papers one by one.**
     That is fine for a teacher's handful of sections, but it would want one query if

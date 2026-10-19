@@ -35,6 +35,8 @@ class DashboardTest extends StudentTestSupport {
 
 	private long asha;
 
+	private long exam;
+
 	@BeforeEach
 	void schoolWithFeesStudentsAndAnExam() throws Exception {
 		school = fixtures.school("Dashboard School");
@@ -62,7 +64,7 @@ class DashboardTest extends StudentTestSupport {
 			.andExpect(status().isCreated());
 
 		long scale = idOf(postAs(p, "/api/v1/exams/grading-scales/presets/CBSE_9_POINT", null));
-		long exam = idOf(postAs(p, "/api/v1/exams", """
+		exam = idOf(postAs(p, "/api/v1/exams", """
 				{"academicYearId":%d,"name":"FA1","gradingScaleId":%d,"startDate":"%s","endDate":"%s"}"""
 			.formatted(setup.yearId(), scale, TODAY, TODAY)).andExpect(status().isCreated()));
 		postAs(p, "/api/v1/exams/{id}/papers/apply", "{\"maxMarks\":50}", exam);
@@ -86,11 +88,19 @@ class DashboardTest extends StudentTestSupport {
 			.andExpect(jsonPath("$.students.total").value(2))
 			.andExpect(jsonPath("$.students.byClass[0].className").value("Class 5"))
 			.andExpect(jsonPath("$.students.byClass[0].students").value(2))
+			.andExpect(jsonPath("$.students.byClass[0].boys").value(2))
+			.andExpect(jsonPath("$.students.byClass[0].girls").value(0))
 			.andExpect(jsonPath("$.attendance.sectionsToMark").value(1))
 			.andExpect(jsonPath("$.attendance.notMarked[0].label").value("Class 5 – A"))
 			.andExpect(jsonPath("$.attendance.percentage").doesNotExist())
 			.andExpect(jsonPath("$.fees.collectedToday").value(300.0))
 			.andExpect(jsonPath("$.fees.collectedThisMonth").value(300.0))
+			.andExpect(jsonPath("$.fees.collectedThisYear").value(300.0))
+			.andExpect(jsonPath("$.fees.byMonth[-1].amount").value(300.0))
+			.andExpect(jsonPath("$.fees.byMode[0].label").value("Cash"))
+			.andExpect(jsonPath("$.fees.byHead[0].label").value("Tuition"))
+			.andExpect(jsonPath("$.fees.byHead[0].amount").value(300.0))
+			.andExpect(jsonPath("$.latestResult").doesNotExist())
 			.andExpect(jsonPath("$.fees.outstanding").value(2700.0)) // 2 × 1500 − 300
 			.andExpect(jsonPath("$.fees.overdue").value(1700.0)) // 2 × 1000 − 300
 			.andExpect(jsonPath("$.fees.topOverdueClasses[0].students").value(2))
@@ -106,7 +116,42 @@ class DashboardTest extends StudentTestSupport {
 			.andExpect(jsonPath("$.attendance.percentage").value(50.0))
 			.andExpect(jsonPath("$.attendance.absent").value(1))
 			.andExpect(jsonPath("$.attendance.notMarked.length()").value(0))
-			.andExpect(jsonPath("$.attendance.trend[-1].percentage").value(50.0));
+			.andExpect(jsonPath("$.attendance.trend[-1].percentage").value(50.0))
+			.andExpect(jsonPath("$.attendance.byClass[0].className").value("Class 5"))
+			.andExpect(jsonPath("$.attendance.byClass[0].percentage").value(50.0));
+	}
+
+	@Test
+	void latestPublishedExamShowsSubjectAverages() throws Exception {
+		long paper = JsonPath.<Number>read(
+				getAs(p, "/api/v1/exams/{id}/papers", exam).andReturn().getResponse().getContentAsString(), "$[0].id")
+			.longValue();
+		String url = "/api/v1/exams/papers/" + paper + "/marks?sectionId=" + setup.sectionId();
+		List<Number> enrollments = JsonPath.read(getAs(p, url).andReturn().getResponse().getContentAsString(),
+				"$.rows[*].enrollmentId");
+		// One student scores 40 / 50, the other is absent.
+		putAs(p, url, """
+				{"entries":[{"enrollmentId":%s,"marks":40,"absent":false},{"enrollmentId":%s,"marks":null,"absent":true}]}"""
+			.formatted(enrollments.get(0), enrollments.get(1))).andExpect(status().isOk());
+		getAs(p, "/api/v1/dashboard").andExpect(jsonPath("$.latestResult").doesNotExist());
+
+		postAs(p, "/api/v1/exams/{id}/publish", null, exam).andExpect(status().isOk());
+		getAs(p, "/api/v1/dashboard")
+			.andExpect(jsonPath("$.latestResult.examName").value("FA1"))
+			.andExpect(jsonPath("$.latestResult.subjects.length()").value(1))
+			.andExpect(jsonPath("$.latestResult.subjects[0].subjectName").value("Mathematics"))
+			.andExpect(jsonPath("$.latestResult.subjects[0].students").value(2))
+			.andExpect(jsonPath("$.latestResult.subjects[0].averagePercent").value(80.0))
+			.andExpect(jsonPath("$.latestResult.subjects[0].passPercent").value(50.0));
+
+		// Another school's dashboard never counts these marks or receipts.
+		TestSchool other = fixtures.school("Other Dashboard School");
+		academic.todaySetup(other);
+		getAs(other.principal(), "/api/v1/dashboard")
+			.andExpect(jsonPath("$.latestResult").doesNotExist())
+			.andExpect(jsonPath("$.fees.collectedThisYear").value(0))
+			.andExpect(jsonPath("$.fees.byMode.length()").value(0))
+			.andExpect(jsonPath("$.fees.byHead.length()").value(0));
 	}
 
 	@Test

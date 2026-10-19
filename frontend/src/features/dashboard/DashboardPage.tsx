@@ -1,17 +1,20 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Button, Card, Col, Empty, Flex, List, Row, Skeleton, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Col, Empty, Flex, List, Row, Segmented, Skeleton, Tag, Typography } from 'antd'
 import {
   CheckCircleFilled, ClockCircleOutlined, EditOutlined, ExclamationCircleFilled, ReloadOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { errorMessage } from '../../api/client'
-import { dashboardApi, type Dashboard } from '../../api/dashboard'
+import { dashboardApi, type Dashboard, type PartAmount } from '../../api/dashboard'
 import { useAuth } from '../../auth/useAuth'
 import { PRINCIPAL_ADMIN } from '../../layout/menu'
 import { formatDate, formatINR } from '../../utils/format'
-import { AttendanceTrendChart, CollectionChart, StudentsByClassChart } from './charts'
+import {
+  AttendanceTrendChart, CollectionChart, DonutChart, MonthlyCollectionChart, PercentBarChart, StudentsByClassChart, type Slice,
+} from './charts'
+import { CATEGORICAL, formatINRCompact, NEUTRAL } from './palette'
 import { SetupChecklist } from './SetupChecklist'
 
 /** Text on the left, a value pushed to the right (wraps on narrow screens). */
@@ -83,16 +86,51 @@ export function DashboardPage() {
   )
 }
 
+const MODE_COLOR: Record<string, string> = {
+  CASH: CATEGORICAL[0], UPI: CATEGORICAL[1], CHEQUE: CATEGORICAL[2], CARD: CATEGORICAL[3], BANK: CATEGORICAL[4], ONLINE: CATEGORICAL[5],
+}
+
+/** Fee heads keep their colour (by id order); past five slices the rest fold into "Other". */
+function headSlices(parts: PartAmount[]): Slice[] {
+  const order = parts.map((p) => Number(p.key)).sort((x, y) => x - y)
+  const top = parts
+    .slice(0, 5)
+    .map((p) => ({ key: p.key, label: p.label, value: p.amount, color: CATEGORICAL[order.indexOf(Number(p.key)) % 5] }))
+  const rest = parts.slice(5).reduce((s, p) => s + p.amount, 0)
+  return rest > 0 ? [...top, { key: 'other', label: 'Other', value: rest, color: NEUTRAL }] : top
+}
+
+function percentOf(part: number, whole: number) {
+  return whole > 0 ? `${Math.round((part * 100) / whole)}%` : '—'
+}
+
 function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: boolean }) {
+  const [collectionView, setCollectionView] = useState<'month' | 'day'>('month')
   const a = data.attendance
   const f = data.fees
+  const r = data.latestResult
   const marked = a ? a.sectionsToMark - a.notMarked.length : 0
+  const markedToday = a ? a.present + a.absent + a.leave + a.halfDay : 0
+  const boys = data.students?.byClass.reduce((s, c) => s + c.boys, 0) ?? 0
+  const girls = data.students?.byClass.reduce((s, c) => s + c.girls, 0) ?? 0
+  // The donut row shares its width evenly, however many donuts there are.
+  const donuts = (a ? 1 : 0) + (f ? 2 : 0) + (f && f.byHead.length > 1 ? 1 : 0)
+  const donutSpan = 24 / Math.max(donuts, 1)
   return (
     <Flex vertical gap={16}>
       <Row gutter={[12, 12]}>
         {data.students && (
           <Col xs={12} lg={6}>
-            <Stat title="Students" value={data.students.total} note={<Typography.Text type="secondary">active this year</Typography.Text>} to="/students" />
+            <Stat
+              title="Students"
+              value={data.students.total}
+              note={
+                <Typography.Text type="secondary">
+                  {boys} boys · {girls} girls
+                </Typography.Text>
+              }
+              to="/students"
+            />
           </Col>
         )}
         {a && (
@@ -147,6 +185,81 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
         )}
       </Row>
 
+      {/* Part-to-whole at a glance: today's attendance, the year's fees, how parents pay. */}
+      <Row gutter={[16, 16]}>
+        {a && (
+          <Col xs={24} md={12} xl={donutSpan}>
+            <Card title="Today's attendance" size="small" style={{ height: '100%' }} extra={<Link to="/attendance/today">Details</Link>}>
+              {a.nonWorkingReason ? (
+                <Empty description={`No school today: ${a.nonWorkingReason}`} />
+              ) : markedToday === 0 ? (
+                <Empty description="No attendance marked yet today" />
+              ) : (
+                <DonutChart
+                  centerValue={a.percentage === null ? '—' : `${a.percentage}%`}
+                  centerLabel="present"
+                  slices={[
+                    { key: 'P', label: 'Present', value: a.present, color: CATEGORICAL[0] },
+                    { key: 'A', label: 'Absent', value: a.absent, color: CATEGORICAL[1] },
+                    { key: 'L', label: 'On leave', value: a.leave, color: CATEGORICAL[2] },
+                    { key: 'H', label: 'Half day', value: a.halfDay, color: CATEGORICAL[3] },
+                  ]}
+                />
+              )}
+            </Card>
+          </Col>
+        )}
+        {f && (
+          <Col xs={24} md={12} xl={donutSpan}>
+            <Card title="Fees this year" size="small" style={{ height: '100%' }} extra={<Link to="/fees/reports">Dues report</Link>}>
+              {f.collectedThisYear + f.outstanding === 0 ? (
+                <Empty description="No fee plan for this year yet" />
+              ) : (
+                <DonutChart
+                  centerValue={percentOf(f.collectedThisYear, f.collectedThisYear + f.outstanding)}
+                  centerLabel="collected"
+                  format={formatINRCompact}
+                  slices={[
+                    { key: 'paid', label: 'Collected', value: f.collectedThisYear, color: CATEGORICAL[0] },
+                    { key: 'later', label: 'Not yet due', value: f.outstanding - f.overdue, color: CATEGORICAL[2] },
+                    { key: 'overdue', label: 'Overdue', value: f.overdue, color: CATEGORICAL[1] },
+                  ]}
+                />
+              )}
+            </Card>
+          </Col>
+        )}
+        {f && (
+          <Col xs={24} md={12} xl={donutSpan}>
+            <Card title="Payment modes this year" size="small" style={{ height: '100%' }}>
+              {f.byMode.length === 0 ? (
+                <Empty description="No receipts this year yet" />
+              ) : (
+                <DonutChart
+                  centerValue={formatINRCompact(f.byMode.reduce((s, m) => s + m.amount, 0))}
+                  centerLabel="received"
+                  format={formatINRCompact}
+                  slices={f.byMode.map((m) => ({ key: m.key, label: m.label, value: m.amount, color: MODE_COLOR[m.key] ?? NEUTRAL }))}
+                />
+              )}
+            </Card>
+          </Col>
+        )}
+        {f && f.byHead.length > 1 && (
+          <Col xs={24} md={12} xl={donutSpan}>
+            <Card title="Collected by fee head" size="small" style={{ height: '100%' }}>
+              <DonutChart
+                centerValue={String(f.byHead.length)}
+                centerLabel="fee heads"
+                format={formatINRCompact}
+                slices={headSlices(f.byHead)}
+              />
+            </Card>
+          </Col>
+        )}
+      </Row>
+
+      {/* Change over time. */}
       <Row gutter={[16, 16]}>
         {a && (
           <Col xs={24} lg={12}>
@@ -161,98 +274,173 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
         )}
         {f && (
           <Col xs={24} lg={12}>
-            <Card title="Fees collected, last 14 days" size="small" style={{ height: '100%' }}>
-              {f.trend.some((d) => d.amount > 0) ? <CollectionChart data={f.trend} /> : <Empty description="No receipts in the last 14 days" />}
+            <Card
+              title={collectionView === 'month' ? 'Fees collected per month' : 'Fees collected, last 14 days'}
+              size="small"
+              style={{ height: '100%' }}
+              extra={
+                <Segmented
+                  size="small"
+                  value={collectionView}
+                  onChange={(v) => setCollectionView(v as 'month' | 'day')}
+                  options={[
+                    { label: 'Monthly', value: 'month' },
+                    { label: 'Daily', value: 'day' },
+                  ]}
+                />
+              }
+            >
+              {collectionView === 'month' ? (
+                f.byMonth.some((m) => m.amount > 0) ? (
+                  <MonthlyCollectionChart data={f.byMonth} />
+                ) : (
+                  <Empty description="No receipts this year yet" />
+                )
+              ) : f.trend.some((d) => d.amount > 0) ? (
+                <CollectionChart data={f.trend} />
+              ) : (
+                <Empty description="No receipts in the last 14 days" />
+              )}
             </Card>
           </Col>
         )}
+      </Row>
+
+      {/* Comparisons across classes and subjects. */}
+      <Row gutter={[16, 16]}>
         {data.students && (
           <Col xs={24} lg={12}>
-            <Card title="Students by class" size="small">
+            <Card title="Students by class" size="small" style={{ height: '100%' }}>
               {data.students.total > 0 ? <StudentsByClassChart data={data.students.byClass} /> : <Empty description="No students enrolled yet" />}
             </Card>
           </Col>
         )}
-        <Col xs={24} lg={12}>
-          <Flex vertical gap={16}>
-            {a && !a.nonWorkingReason && a.notMarked.length > 0 && (
-              <Card title={`Attendance not marked yet (${a.notMarked.length})`} size="small">
-                <Flex gap={6} wrap>
-                  {a.notMarked.map((s) => (
-                    <Link key={s.sectionId} to={`/attendance?section=${s.sectionId}`}>
-                      <Tag style={{ padding: '2px 8px', fontSize: 13 }}>{s.label}</Tag>
-                    </Link>
-                  ))}
-                </Flex>
-              </Card>
-            )}
-            {f && (
-              <Card title="Most overdue classes" size="small" extra={<Link to="/fees/reports">Dues report</Link>}>
-                {f.topOverdueClasses.length === 0 ? (
-                  <Typography.Text type="secondary">Nothing is overdue.</Typography.Text>
-                ) : (
-                  <List
-                    size="small"
-                    split={false}
-                    dataSource={f.topOverdueClasses}
-                    renderItem={(c) => (
-                      <List.Item style={{ padding: '4px 0' }}>
-                        <Line right={<b style={{ fontVariantNumeric: 'tabular-nums' }}>{formatINR(c.overdue)}</b>}>
+        {a && (
+          <Col xs={24} lg={12}>
+            <Card title={`Attendance by class, ${dayjs().format('MMMM')}`} size="small" style={{ height: '100%' }}>
+              {a.byClass.length > 0 ? (
+                <PercentBarChart
+                  data={a.byClass}
+                  labelKey="className"
+                  tooltip={(c) => ({ title: c.className, body: `${c.percentage}% present · ${c.marked} marked` })}
+                />
+              ) : (
+                <Empty description="No attendance marked this month" />
+              )}
+            </Card>
+          </Col>
+        )}
+        {data.upcomingExams && (
+          <Col xs={24} lg={12}>
+            <Card
+              title={r ? `${r.examName}: subject averages` : 'Exam results'}
+              size="small"
+              style={{ height: '100%' }}
+              extra={r && <Link to="/exams/results">Results</Link>}
+            >
+              {r && r.subjects.length > 0 ? (
+                <PercentBarChart
+                  data={r.subjects.map((s) => ({ ...s, percentage: s.averagePercent }))}
+                  labelKey="subjectName"
+                  tooltip={(s) => ({
+                    title: s.subjectName,
+                    body: `Average ${s.averagePercent ?? '—'}% · ${s.passPercent ?? '—'}% passed · ${s.students} students`,
+                  })}
+                />
+              ) : (
+                <Empty description="Subject averages appear once an exam is published" />
+              )}
+            </Card>
+          </Col>
+        )}
+        {f && (
+          <Col xs={24} lg={12}>
+            <Card title="Most overdue classes" size="small" style={{ height: '100%' }} extra={<Link to="/fees/reports">Dues report</Link>}>
+              {f.topOverdueClasses.length === 0 ? (
+                <Typography.Text type="secondary">Nothing is overdue.</Typography.Text>
+              ) : (
+                <List
+                  size="small"
+                  split={false}
+                  dataSource={f.topOverdueClasses}
+                  renderItem={(c) => (
+                    <List.Item style={{ padding: '4px 0' }}>
+                      <Line right={<b style={{ fontVariantNumeric: 'tabular-nums' }}>{formatINR(c.overdue)}</b>}>
                         {c.className} <Typography.Text type="secondary">· {c.students} students</Typography.Text>
-                        </Line>
-                      </List.Item>
-                    )}
-                  />
-                )}
-              </Card>
-            )}
-            {data.upcomingExams && (
-              <Card title="Upcoming exams" size="small" extra={adminLike && <Link to="/exams/setup">Exam setup</Link>}>
-                {data.upcomingExams.length === 0 ? (
-                  <Typography.Text type="secondary">No exams with upcoming dates.</Typography.Text>
-                ) : (
-                  <List
-                    size="small"
-                    split={false}
-                    dataSource={data.upcomingExams}
-                    renderItem={(e) => (
-                      <List.Item style={{ padding: '4px 0' }}>
-                        <Line right={e.published ? <Tag color="green">Published</Tag> : null}>
+                      </Line>
+                    </List.Item>
+                  )}
+                />
+              )}
+            </Card>
+          </Col>
+        )}
+      </Row>
+
+      {/* To-dos and recent activity. */}
+      <Row gutter={[16, 16]}>
+        {a && !a.nonWorkingReason && a.notMarked.length > 0 && (
+          <Col xs={24} lg={12}>
+            <Card title={`Attendance not marked yet (${a.notMarked.length})`} size="small" style={{ height: '100%' }}>
+              <Flex gap={6} wrap>
+                {a.notMarked.map((s) => (
+                  <Link key={s.sectionId} to={`/attendance?section=${s.sectionId}`}>
+                    <Tag style={{ padding: '2px 8px', fontSize: 13 }}>{s.label}</Tag>
+                  </Link>
+                ))}
+              </Flex>
+            </Card>
+          </Col>
+        )}
+        {data.upcomingExams && (
+          <Col xs={24} lg={12}>
+            <Card title="Upcoming exams" size="small" style={{ height: '100%' }} extra={adminLike && <Link to="/exams/setup">Exam setup</Link>}>
+              {data.upcomingExams.length === 0 ? (
+                <Typography.Text type="secondary">No exams with upcoming dates.</Typography.Text>
+              ) : (
+                <List
+                  size="small"
+                  split={false}
+                  dataSource={data.upcomingExams}
+                  renderItem={(e) => (
+                    <List.Item style={{ padding: '4px 0' }}>
+                      <Line right={e.published ? <Tag color="green">Published</Tag> : null}>
                         <b>{e.name}</b>{' '}
                         <Typography.Text type="secondary">
                           {formatDate(e.startDate)}
                           {e.endDate && e.endDate !== e.startDate && ` – ${formatDate(e.endDate)}`}
                         </Typography.Text>
-                        </Line>
-                      </List.Item>
-                    )}
-                  />
-                )}
-              </Card>
-            )}
-            {data.recentAdmissions && (
-              <Card title="Recent admissions" size="small" extra={adminLike && <Link to="/students/new">Admit student</Link>}>
-                {data.recentAdmissions.length === 0 ? (
-                  <Typography.Text type="secondary">No students yet.</Typography.Text>
-                ) : (
-                  <List
-                    size="small"
-                    split={false}
-                    dataSource={data.recentAdmissions}
-                    renderItem={(s) => (
-                      <List.Item style={{ padding: '4px 0' }}>
-                        <Line right={<Typography.Text type="secondary">{formatDate(s.admissionDate)}</Typography.Text>}>
+                      </Line>
+                    </List.Item>
+                  )}
+                />
+              )}
+            </Card>
+          </Col>
+        )}
+        {data.recentAdmissions && (
+          <Col xs={24} lg={12}>
+            <Card title="Recent admissions" size="small" style={{ height: '100%' }} extra={adminLike && <Link to="/students/new">Admit student</Link>}>
+              {data.recentAdmissions.length === 0 ? (
+                <Typography.Text type="secondary">No students yet.</Typography.Text>
+              ) : (
+                <List
+                  size="small"
+                  split={false}
+                  dataSource={data.recentAdmissions}
+                  renderItem={(s) => (
+                    <List.Item style={{ padding: '4px 0' }}>
+                      <Line right={<Typography.Text type="secondary">{formatDate(s.admissionDate)}</Typography.Text>}>
                         <Link to={`/students/${s.studentId}`}>{s.fullName}</Link>{' '}
                         <Typography.Text type="secondary">· {s.className ?? 'not enrolled'}</Typography.Text>
-                        </Line>
-                      </List.Item>
-                    )}
-                  />
-                )}
-              </Card>
-            )}
-          </Flex>
-        </Col>
+                      </Line>
+                    </List.Item>
+                  )}
+                />
+              )}
+            </Card>
+          </Col>
+        )}
       </Row>
     </Flex>
   )

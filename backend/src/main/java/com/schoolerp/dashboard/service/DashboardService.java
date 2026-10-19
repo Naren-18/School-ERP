@@ -30,6 +30,7 @@ import com.schoolerp.dashboard.repository.DashboardRepository;
 import com.schoolerp.exam.dto.ExamDto;
 import com.schoolerp.exam.service.ExamService;
 import com.schoolerp.exam.service.MarksService;
+import com.schoolerp.fee.entity.PaymentMode;
 import com.schoolerp.school.entity.SchoolSettings;
 import com.schoolerp.school.service.SchoolService;
 import com.schoolerp.tenant.TenantContext;
@@ -75,7 +76,7 @@ public class DashboardService {
 		Long schoolId = TenantContext.require();
 		Long yearId = yearService.resolve(null).orElse(null);
 		if (yearId == null) {
-			return new DashboardDto(null, null, null, null, null, null, null);
+			return new DashboardDto(null, null, null, null, null, null, null, null);
 		}
 		AcademicYear year = yearService.require(yearId);
 		SchoolSettings.Modules modules = schoolService.requireCurrent().getSettings().modules();
@@ -85,17 +86,18 @@ public class DashboardService {
 		boolean accountant = user.hasRole(Role.ACCOUNTANT);
 
 		if (!adminLike && !accountant) {
-			return new DashboardDto(year.getName(), null, null, null, null, null, teacher(user, modules, today));
+			return new DashboardDto(year.getName(), null, null, null, null, null, null, teacher(user, modules, today));
 		}
 		List<DashboardDto.ClassCount> byClass = repo.studentsByClass(schoolId, yearId);
 		DashboardDto.Students students = new DashboardDto.Students(
 				byClass.stream().mapToInt(DashboardDto.ClassCount::students).sum(), byClass);
-		DashboardDto.Fees fees = modules.fees() ? fees(schoolId, yearId, today) : null;
+		DashboardDto.Fees fees = modules.fees() ? fees(schoolId, year, today) : null;
 		if (!adminLike) {
-			return new DashboardDto(year.getName(), students, null, fees, null, null, null);
+			return new DashboardDto(year.getName(), students, null, fees, null, null, null, null);
 		}
 		return new DashboardDto(year.getName(), students, modules.attendance() ? attendance(schoolId, today) : null, fees,
 				modules.exams() ? repo.upcomingExams(schoolId, yearId, today, 5) : null,
+				modules.exams() ? latestResult(schoolId, yearId) : null,
 				repo.recentAdmissions(schoolId, yearId, 5), null);
 	}
 
@@ -107,20 +109,39 @@ public class DashboardService {
 		return new DashboardDto.Attendance(t.date(), t.nonWorkingReason(), t.enrolled(), c.present(), c.absent(), c.leave(),
 				c.halfDay(), c.percentage(), sectionsToMark,
 				t.unmarkedSections().stream().map(u -> new DashboardDto.PendingSection(u.sectionId(), u.label(), u.enrolled())).toList(),
-				trend);
+				trend, repo.attendanceByClass(schoolId, today.withDayOfMonth(1), today));
 	}
 
-	private DashboardDto.Fees fees(Long schoolId, Long yearId, LocalDate today) {
+	private DashboardDto.Fees fees(Long schoolId, AcademicYear year, LocalDate today) {
+		Long yearId = year.getId();
 		LocalDate from = today.minusDays(TREND_DAYS - 1L);
 		Map<LocalDate, BigDecimal> byDay = repo.collectedByDay(schoolId, from, today);
 		List<DashboardDto.DayAmount> trend = new ArrayList<>();
 		for (LocalDate d = from; !d.isAfter(today); d = d.plusDays(1)) {
 			trend.add(new DashboardDto.DayAmount(d, byDay.getOrDefault(d, BigDecimal.ZERO)));
 		}
+		// Months of the year up to this one (or the whole year once it is over).
+		Map<LocalDate, BigDecimal> byMonthMap = repo.collectedByMonth(schoolId, yearId);
+		LocalDate lastMonth = (today.isBefore(year.getEndDate()) ? today : year.getEndDate()).withDayOfMonth(1);
+		List<DashboardDto.MonthAmount> byMonth = new ArrayList<>();
+		for (LocalDate m = year.getStartDate().withDayOfMonth(1); !m.isAfter(lastMonth); m = m.plusMonths(1)) {
+			byMonth.add(new DashboardDto.MonthAmount(m, byMonthMap.getOrDefault(m, BigDecimal.ZERO)));
+		}
+		List<DashboardDto.PartAmount> byMode = repo.collectedByMode(schoolId, yearId)
+			.stream()
+			.map(p -> new DashboardDto.PartAmount(p.key(), PaymentMode.valueOf(p.key()).label(), p.amount()))
+			.toList();
 		DashboardRepository.DuesTotal dues = repo.duesTotal(schoolId, yearId, today);
 		return new DashboardDto.Fees(byDay.getOrDefault(today, BigDecimal.ZERO),
-				repo.collectedBetween(schoolId, today.withDayOfMonth(1), today), dues.outstanding(), dues.overdue(),
-				repo.topOverdueClasses(schoolId, yearId, today, 5), trend);
+				repo.collectedBetween(schoolId, today.withDayOfMonth(1), today), dues.paid(), dues.outstanding(),
+				dues.overdue(), repo.topOverdueClasses(schoolId, yearId, today, 5), trend, byMonth, byMode,
+				repo.collectedByHead(schoolId, yearId));
+	}
+
+	private DashboardDto.ExamResult latestResult(Long schoolId, Long yearId) {
+		return repo.latestPublishedExam(schoolId, yearId)
+			.map(e -> new DashboardDto.ExamResult(e.getKey(), e.getValue(), repo.subjectResults(schoolId, e.getKey())))
+			.orElse(null);
 	}
 
 	/** A teacher's day: their sections (attendance taken or not) and marks still to enter. */

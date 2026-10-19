@@ -19,7 +19,7 @@ share one deployment; each school is fully isolated, with its own logins and dat
 | 5 | Fees: plans, dues, collection, receipts (PDF), cancellation, reports | Done |
 | 6 | Exams: grading scales, papers, marks entry, results, report cards (PDF) | Done |
 | 7 | Certificates (bonafide, TC), editable templates, report card remarks and co-scholastic grades | Done |
-| 8 | School dashboard: role-aware stats and charts, teacher view | Done |
+| 8 | School dashboard: role-aware stats, donut, trend and comparison charts, teacher view | Done |
 | 9 | Demo data: three fictional schools, about 390 students each, a one-off seeder | Done |
 | 10 | Production deployment | Next |
 | 11 | Demo polish | Not started |
@@ -310,8 +310,9 @@ records.
 ### Manual walkthrough
 
 1. Sign in to `ssv` as `principal`. The app takes on the school's colour and logo, and the
-   dashboard shows today's attendance, fees, charts and recent admissions. Sign in as
-   `sunitha` (demo teacher, same dev password) to see the teacher dashboard.
+   dashboard shows donuts (today's attendance, fees collected vs due, payment modes, fee
+   heads), fees per month, boys/girls and attendance per class, exam subject averages and
+   the to-do lists. Sign in as `sunitha` (demo teacher, same dev password) to see the teacher dashboard.
 2. In a second browser tab, sign in to `gps`. Each tab shows only its own school.
 3. Follow the dashboard checklist in `gps` to set up a school from scratch.
 4. Admit a student, find them by the parent's phone, change their section, then create
