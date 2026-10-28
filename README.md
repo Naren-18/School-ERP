@@ -6,6 +6,7 @@ share one deployment; each school is fully isolated, with its own logins and dat
 - **Rules for building it:** [`CLAUDE.md`](CLAUDE.md)
 - **Phased build plan and progress:** [`PLAN.md`](PLAN.md)
 - **How it is built (design, modules, API, decisions):** [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- **How it was built, phase by phase (what, how, problems and fixes):** [`BUILD_HISTORY.md`](BUILD_HISTORY.md)
 
 ## Status
 

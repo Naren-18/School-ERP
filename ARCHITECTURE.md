@@ -2,7 +2,8 @@
 
 How the School ERP is built, as of the end of **Phase 9** (demo data).
 For the rules that every change must follow, see [`CLAUDE.md`](CLAUDE.md); for the phase
-plan, see [`PLAN.md`](PLAN.md); for running it, see [`README.md`](README.md).
+plan, see [`PLAN.md`](PLAN.md); for running it, see [`README.md`](README.md); for how it was
+built phase by phase, see [`BUILD_HISTORY.md`](BUILD_HISTORY.md).
 
 ---
 
