@@ -78,6 +78,8 @@ Package root `com.schoolerp`. Each module has `controller/ service/ repository/ 
 | `common.pdf` | `HtmlPdf`: shared openhtmltopdf rendering, DejaVu Sans fonts, escaping, ₹ formatting, embedded images (receipts and report cards) |
 | `certificate` | Template mechanism shared with report cards (`TemplateType`, `TemplateFields`, `TemplateValues`, `TemplateDocument`, `TemplateService`: built-in default unless the school saved its own), issuing bonafide/TC with gap-free serials, data snapshot and stored PDF, register; behind `@RequiresModule(CERTIFICATES)` |
 | `common.template` | `Placeholders`: `{{value}}` (escaped) and `{{{block}}}` (app-built HTML), validation against an allowed list, forbidden markup |
+| `notification` | WhatsApp messages to parents: `WhatsAppSender` (Meta Cloud API, or log-only without keys), `NotificationService` (consent, the school's per-kind switches, parallel sending, `notification_log`, audit), the message log search. Knows nothing about attendance, fees or exams: those modules check access, build the template values and call it |
+| `fee` (online) | `PaymentGateway` (`RazorpayGateway`, or "not set up" without keys), `OnlinePaymentService` (order → verify → normal receipt), `FeeMessageService` (fee reminders, payment confirmations) |
 | `dashboard` | `GET /dashboard`: role-aware read model (`DashboardRepository`, one tenant-scoped SQL query per widget; reuses the attendance day summary and marks entry options); widgets of switched-off modules left out |
 
 ## 4. Tenant isolation (the most important design)
@@ -168,7 +170,7 @@ Errors anywhere → GlobalExceptionHandler → ProblemDetail
 
 ## 7. Data model in use
 
-The schema is `V1__core_schema.sql` (28 tables) plus `V2__certificates_and_report_card_notes.sql` (3 tables). V1 has never been edited after
+The schema is `V1__core_schema.sql` (28 tables) plus `V2__certificates_and_report_card_notes.sql` (3 tables) and `V3__parent_messages_and_online_payments.sql` (2 tables, `student.whatsapp_consent`). V1 has never been edited after
 running; changes would be new migrations. `ddl-auto=validate`, so Hibernate only
 checks the schema and never alters it. Tables in use so far:
 
@@ -204,6 +206,9 @@ checks the schema and never alters it. Tables in use so far:
 | `certificate_template` | `CertificateTemplate` | `type` BONAFIDE / TC / REPORT_CARD; a row exists only once the school saves its own version |
 | `issued_certificate` | `IssuedCertificate` | Serial unique per school + type; `data` JSONB snapshot of every printed value; `pdf_url` = FileStorage key of the PDF |
 | `certificate_counter` (V2) | (plain SQL) | One row per school + type, locked `FOR UPDATE` |
+| `student.whatsapp_consent` (V3) | `Student.whatsappConsent` | Default false; nobody is messaged without it |
+| `notification_log` (V3) | `NotificationLog` | One row per WhatsApp message tried (SENT / FAILED + error); `ref_date` (absence day) or `ref_id` (receipt, exam); skipped students are not stored |
+| `online_payment` (V3) | `OnlinePayment` | A Razorpay order: `lines` JSONB (due id → amount) fixed at creation, `status` CREATED / PAID / FAILED, `payment_id`, `receipt_id`; locked `FOR UPDATE` when completed |
 
 Foreign keys are mapped as plain `Long` ids, not JPA associations. Services batch-load
 related rows into maps. This keeps every query explicit and tenant-scoped, and avoids
@@ -443,6 +448,46 @@ timestamps `OffsetDateTime`. The JVM and JSON time zone is `Asia/Kolkata`.
   - receipt create and cancel
   - exam publish/unpublish, report card printing
 
+### WhatsApp messages to parents
+
+- **Who can be messaged** is decided in one place (`NotificationService`): the parent
+  agreed (`whatsapp_consent`), the student has a mobile number (primary contact, else
+  the first contact with one), and the school has that kind switched on
+  (`settings.messages`). Others are reported as *skipped* with the reason.
+- **Callers keep their own rules:** absence alerts reuse the attendance sheet (teacher
+  scope, 404 elsewhere; teachers today only) and accept only students marked A that
+  day; reminders accept only students on the dues report; results need a published
+  exam and the section's result sheet. The browser sends only student ids; names,
+  amounts and numbers come from the database.
+- **Templates:** every message is a Meta-approved Utility template (`MessageType` holds
+  the names and placeholder order). Amounts use `Rupees` (Indian grouping).
+- **No transaction is held while sending.** Contacts are read first, messages go out
+  on a small thread pool (8 at a time, only HTTP on those threads), then the log rows
+  are saved and one audit entry is written per batch.
+- **Payment confirmations** are sent by the controller *after* the receipt's
+  transaction has committed, so a WhatsApp delay or failure never affects the receipt
+  and never holds a second database connection; the demo seeder (which calls the
+  service directly) sends nothing.
+- **Without keys** the log-only sender writes the message to the backend log and the
+  API reports `connected: false`, which the screens show.
+
+### Online payment at the counter (Razorpay)
+
+1. `POST /fees/online/orders`: the dues are checked exactly like a cash payment
+   (`FeeCollectionService.checkPayable`, no lock, no number taken), then a Razorpay
+   order is created for that total and stored with the lines.
+2. The browser opens Razorpay's checkout (script loaded only then) for that order.
+3. `POST /fees/online/orders/{id}/complete`: the HMAC-SHA256 signature
+   (`orderId|paymentId`, key secret) is checked, then Razorpay is asked for the
+   payment itself (order, amount, status; captured if only authorised). Only then, in
+   one transaction with the `online_payment` row locked, the normal `collect` runs
+   (mode ONLINE, reference = payment id) and the row becomes PAID. A second call
+   returns the same receipt.
+4. If the dues changed meanwhile (e.g. paid in cash), no receipt is made, the row is
+   FAILED with the reason, and staff are told to refund in the Razorpay dashboard.
+
+Calls to Razorpay happen outside database transactions.
+
 ## 9. API (all under `/api/v1`)
 
 Public: `POST /auth/login`, `GET /public/schools/{code}/branding`, `GET /public/schools/{code}/logo/{file}`, `GET /actuator/health`.
@@ -477,6 +522,11 @@ Public: `POST /auth/login`, `GET /public/schools/{code}/branding`, `GET /public/
 | Report card template | `GET /exams/report-card-template` · `PUT` · `DELETE` (reset) · `POST …/preview` | principal |
 | Certificates | `GET /certificates?type&from&to&q&page&size` · `GET /certificates/{id}/pdf` · `GET /certificates/students/{id}` · `POST /certificates/students/{id}/preview` · `POST /certificates/students/{id}` (issue) | principal/admin |
 | Certificate templates | `GET /certificates/templates/{BONAFIDE\|TC}` · `PUT` · `DELETE` (reset) · `POST …/preview` | principal |
+| Absence alerts | `GET /attendance/sections/{id}/absence-alerts?date` · `POST …/absence-alerts?date {studentIds}` | principal/admin/teacher (own sections; teachers send for today only) |
+| Fee reminders | `POST /fees/reminders {academicYearId?, studentIds}` | principal/admin/accountant |
+| Online payment | `GET /fees/online/config` · `POST /fees/online/orders` · `POST /fees/online/orders/{id}/complete` | principal/admin/accountant |
+| Results messages | `GET /exams/{id}/results/notifications?sectionId` · `POST /exams/{id}/results/notify?sectionId {studentIds}` | principal/admin |
+| Message log | `GET /notifications/status` (any staff) · `GET /notifications?type&status&from&to&q&page&size` | log: principal/admin |
 | Dashboard | `GET /dashboard` (shape depends on role: principal/admin everything; accountant students + fees; teacher their sections, attendance to take, marks to enter) | any staff |
 | Results | `GET /exams/result-sections?academicYearId` · `GET /exams/{id}/results?sectionId` · `GET /exams/students/{id}/results?academicYearId` · `GET /exams/report-cards.pdf?sectionId&examId&studentId` | principal/admin; teachers for sections they teach or class-teach |
 
@@ -720,7 +770,9 @@ Other settings:
   - **Only bonafide and TC.** Conduct and study certificates (in the V1 comment)
     would be two more `TemplateType`s.
   - **No cancelling or reissuing.** A TC issued by mistake needs a database fix.
-  - **No check on fee dues before a TC.** The TC does not show outstanding fees.
+  - **Fee dues before a TC are a warning, not a rule.** The TC dialog shows the
+    balance and asks for confirmation; the API does not refuse it, and the TC itself
+    does not print outstanding fees.
   - **The template editor is a plain textarea.** The preview is a PDF in an iframe,
     which phones may not display; it is a desktop task.
 
@@ -746,6 +798,23 @@ Other settings:
     before payments dated after "today" were skipped show a spike in "collected today"
     (seen in `lvps` on the dev database). A fresh seed doesn't.
 
+- **WhatsApp and Razorpay:**
+  - **One platform account each**, keys from the environment. Parents see the
+    platform's WhatsApp name, and online money goes to the account owning the Razorpay
+    keys. Per-school accounts (Meta Embedded Signup, Razorpay per-school keys stored
+    encrypted) are needed before real schools pay online.
+  - **No delivery or read ticks**, and no Razorpay webhook: both need a public URL.
+    If the browser closes after paying but before "complete", the payment stays
+    CREATED; staff see it in Razorpay and collect it again by hand.
+  - **Sending is synchronous:** a 1,000-parent reminder takes tens of seconds in one
+    request. A background job is the next step for whole-school sends.
+  - **English templates only**; Telugu would be a second set of templates.
+  - **Not tried against the real services yet**: covered by tests with stand-ins
+    (`FakeIntegrations`); first real run needs the keys and approved templates.
+- **Fixed: amounts in PDFs above ₹99,999 were grouped the Western way** (₹123,456.00) because
+  Java's en-IN format groups in threes; fixed with `Rupees` (receipts, report cards,
+  certificates, WhatsApp).
+
 ## 15. What's next
 
 A demo deployment already exists (`deploy/demo/`, added before Phase 10):
@@ -765,7 +834,11 @@ Phase 10 is **production deployment**:
 - running the demo seeder once on the server (`prod,demo` profiles)
 - per-school subdomains (`ssv.schoolerp.com`) are planned here as well
 
-Note: PLAN.md shows Phase 10's checkboxes as ticked, but none of that work exists
-in the repository yet (no Dockerfile or production compose file).
+PLAN.md's Phase 10 and 11 checkboxes were ticked by mistake from the start; they are
+now unticked to match the repository.
 
-Phase 11 (demo polish) follows.
+Phase 11 (demo polish) follows; `DEMO.md` (the click path) already exists.
+
+Also next for parent messages and payments (see §14): per-school WhatsApp and
+Razorpay accounts, delivery ticks and the Razorpay webhook (need the public URL),
+background sending for whole-school reminders, Telugu templates.

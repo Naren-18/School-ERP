@@ -1,11 +1,14 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Alert, App, Button, DatePicker, Form, Input, Modal, Radio } from 'antd'
+import { Link } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Alert, App, Button, Checkbox, DatePicker, Flex, Form, Input, Modal, Radio } from 'antd'
 import { EyeOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { certificatesApi, type CertificateType, type IssueRequest } from '../../api/certificates'
 import { errorMessage } from '../../api/client'
-import { API_DATE_FORMAT, DATE_FORMAT } from '../../utils/format'
+import { feesApi } from '../../api/fees'
+import { useAuth } from '../../auth/useAuth'
+import { API_DATE_FORMAT, DATE_FORMAT, formatINR } from '../../utils/format'
 import { openPdf } from '../../utils/openPdf'
 
 interface Values {
@@ -34,6 +37,17 @@ export function IssueCertificateDialog({ studentId, studentName, status, onClose
   const [previewing, setPreviewing] = useState(false)
   const type = Form.useWatch('type', form)
   const active = status === 'ACTIVE'
+  const { me } = useAuth()
+
+  // Schools check fees before a TC: show what is still due, and ask before issuing anyway.
+  const fees = useQuery({
+    queryKey: ['student-fees', studentId],
+    queryFn: () => feesApi.studentFees(studentId),
+    enabled: !!me?.school.modules.fees && type === 'TC',
+  })
+  const due = type === 'TC' ? fees.data?.totals : undefined
+  const [issueAnyway, setIssueAnyway] = useState(false)
+  const blockedByDues = !!due && due.balance > 0 && !issueAnyway
 
   const request = (v: Values): IssueRequest => ({
     type: v.type,
@@ -98,7 +112,7 @@ export function IssueCertificateDialog({ studentId, studentName, status, onClose
         <Button key="preview" icon={<EyeOutlined />} loading={previewing} onClick={preview}>
           Preview
         </Button>,
-        <Button key="issue" type="primary" loading={issue.isPending} onClick={() => form.submit()}>
+        <Button key="issue" type="primary" loading={issue.isPending} disabled={blockedByDues} onClick={() => form.submit()}>
           Issue
         </Button>,
       ]}
@@ -120,6 +134,31 @@ export function IssueCertificateDialog({ studentId, studentName, status, onClose
         </Form.Item>
         {!active && type === 'TC' && (
           <Alert type="info" showIcon style={{ marginBottom: 12 }} title="The student has already left; the TC uses their leaving date." />
+        )}
+        {due && due.balance > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 12 }}
+            title={`${formatINR(due.balance)} in fees is still due`}
+            description={
+              <Flex vertical gap={8}>
+                <span>
+                  {due.overdue > 0 && `${formatINR(due.overdue)} of it is overdue. `}
+                  Collect it before issuing the TC, or confirm below.{' '}
+                  <Link to={`/fees/collect?student=${studentId}`} onClick={onClose}>
+                    Collect fee
+                  </Link>
+                </span>
+                <Checkbox checked={issueAnyway} onChange={(e) => setIssueAnyway(e.target.checked)}>
+                  Issue the TC anyway
+                </Checkbox>
+              </Flex>
+            }
+          />
+        )}
+        {type === 'TC' && fees.isSuccess && fees.data.totals.balance === 0 && (
+          <Alert type="success" showIcon style={{ marginBottom: 12 }} title="No fees due" />
         )}
         <Form.Item name="purpose" label="Purpose" rules={[{ max: 150 }]} extra={type === 'BONAFIDE' ? 'Printed as "issued for the purpose of …"' : undefined}>
           <Input placeholder={type === 'BONAFIDE' ? 'e.g. applying for a scholarship' : 'e.g. admission to another school'} />

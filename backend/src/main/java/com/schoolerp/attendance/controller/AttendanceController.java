@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,9 +22,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.schoolerp.attendance.dto.AttendanceDto;
+import com.schoolerp.attendance.service.AbsenceAlertService;
 import com.schoolerp.attendance.service.AttendanceReportService;
 import com.schoolerp.attendance.service.AttendanceService;
 import com.schoolerp.auth.Access;
+import com.schoolerp.notification.dto.NotificationDto;
 import com.schoolerp.school.module.Module;
 import com.schoolerp.school.module.RequiresModule;
 
@@ -40,6 +43,8 @@ public class AttendanceController {
 	private final AttendanceService attendanceService;
 
 	private final AttendanceReportService reportService;
+
+	private final AbsenceAlertService absenceAlerts;
 
 	private final Clock clock;
 
@@ -63,6 +68,23 @@ public class AttendanceController {
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
 			@Valid @RequestBody AttendanceDto.SaveRequest request) {
 		return attendanceService.save(sectionId, orToday(date), request);
+	}
+
+	/** Students marked absent on the day, and whether their parents were already messaged. */
+	@GetMapping("/sections/{sectionId}/absence-alerts")
+	@PreAuthorize(Access.TEACHING_STAFF)
+	AttendanceDto.AbsenceAlerts absenceAlerts(@PathVariable Long sectionId,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+		return absenceAlerts.alerts(sectionId, orToday(date));
+	}
+
+	/** WhatsApp the parents of the chosen absent students. */
+	@PostMapping("/sections/{sectionId}/absence-alerts")
+	@PreAuthorize(Access.TEACHING_STAFF)
+	NotificationDto.SendReport sendAbsenceAlerts(@PathVariable Long sectionId,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+			@Valid @RequestBody NotificationDto.SendRequest request) {
+		return absenceAlerts.send(sectionId, orToday(date), request);
 	}
 
 	@GetMapping("/sections/{sectionId}/register")

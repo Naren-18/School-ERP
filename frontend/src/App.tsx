@@ -32,6 +32,7 @@ import { RemarksPage } from './features/exams/RemarksPage'
 import { TemplateEditor } from './features/certificates/TemplateEditor'
 import { CertificatesPage } from './features/certificates/CertificatesPage'
 import { CertificateTemplatesPage } from './features/certificates/CertificateTemplatesPage'
+import { MessageLogPage } from './features/messages/MessageLogPage'
 import { AppShell } from './layout/AppShell'
 import { BrandTheme } from './layout/BrandTheme'
 import { FEE_STAFF, PRINCIPAL, PRINCIPAL_ADMIN, TEACHING } from './layout/menu'
@@ -116,6 +117,7 @@ export default function App() {
             <Route index element={only(PRINCIPAL_ADMIN, <CertificatesPage />)} />
             <Route path="templates" element={only(PRINCIPAL, <CertificateTemplatesPage />)} />
           </Route>
+          <Route path="messages" element={only(PRINCIPAL_ADMIN, <MessageLogPage />)} />
           <Route path="settings">
             <Route index element={<Navigate to="years" replace />} />
             <Route path="school" element={only(PRINCIPAL, <SchoolProfilePage />)} />

@@ -1,15 +1,18 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Button, Card, Col, Empty, Flex, List, Row, Segmented, Skeleton, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Col, Empty, Flex, Grid, List, Row, Segmented, Skeleton, Tag, Typography, theme } from 'antd'
 import {
-  CheckCircleFilled, ClockCircleOutlined, EditOutlined, ExclamationCircleFilled, ReloadOutlined,
+  CarryOutOutlined, CheckCircleFilled, CheckSquareOutlined, ClockCircleOutlined, DollarOutlined, EditOutlined,
+  ExclamationCircleFilled, FieldTimeOutlined, ReloadOutlined, TeamOutlined, UserAddOutlined, WalletOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import type { Role } from '../../api/auth'
 import { errorMessage } from '../../api/client'
 import { dashboardApi, type Dashboard, type PartAmount } from '../../api/dashboard'
+import type { Modules } from '../../api/school'
 import { useAuth } from '../../auth/useAuth'
-import { PRINCIPAL_ADMIN } from '../../layout/menu'
+import { FEE_STAFF, PRINCIPAL_ADMIN, TEACHING } from '../../layout/menu'
 import { formatDate, formatINR } from '../../utils/format'
 import {
   AttendanceTrendChart, CollectionChart, DonutChart, MonthlyCollectionChart, PercentBarChart, StudentsByClassChart, type Slice,
@@ -27,24 +30,116 @@ function Line({ right, children }: { right: ReactNode; children: ReactNode }) {
   )
 }
 
-/** A headline number with a short line under it. */
-function Stat({ title, value, note, to }: { title: string; value: ReactNode; note?: ReactNode; to?: string }) {
+/** Colour of a stat tile's icon badge (the categorical slots, so tiles match the charts). */
+const TILE = { blue: CATEGORICAL[0], orange: CATEGORICAL[1], green: CATEGORICAL[2], amber: CATEGORICAL[3], violet: CATEGORICAL[5] }
+
+/** A headline number with an icon badge and a short line under it. */
+function Stat({ title, value, note, to, icon, color }: {
+  title: string
+  value: ReactNode
+  note?: ReactNode
+  to?: string
+  icon: ReactNode
+  color: string
+}) {
+  // On a phone two tiles share a row: the badge goes above the text so the number keeps its width.
+  const narrow = !Grid.useBreakpoint().sm
+  const badge = narrow ? 30 : 38
   const body = (
-    <Card size="small" hoverable={!!to} style={{ height: '100%' }} styles={{ body: { padding: '14px 16px' } }}>
-      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-        {title}
-      </Typography.Text>
-      <div style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.3, margin: '2px 0', fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>
-        {value}
-      </div>
-      {note && <div style={{ fontSize: 13 }}>{note}</div>}
+    <Card size="small" hoverable={!!to} style={{ height: '100%' }} styles={{ body: { padding: narrow ? 12 : '14px 16px' } }}>
+      <Flex gap={narrow ? 8 : 12} align="flex-start" vertical={narrow}>
+        <div
+          aria-hidden
+          style={{
+            width: badge,
+            height: badge,
+            borderRadius: 10,
+            flexShrink: 0,
+            display: 'grid',
+            placeItems: 'center',
+            fontSize: narrow ? 15 : 18,
+            color,
+            background: `${color}1f`,
+          }}
+        >
+          {icon}
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            {title}
+          </Typography.Text>
+          <div style={{ fontSize: 24, fontWeight: 600, lineHeight: 1.3, margin: '2px 0', fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>
+            {value}
+          </div>
+          {note && <div style={{ fontSize: 13 }}>{note}</div>}
+        </div>
+      </Flex>
     </Card>
   )
   return to ? <Link to={to}>{body}</Link> : body
 }
 
-export function DashboardPage() {
+/** A small label above a group of cards, so the page reads in sections. */
+function SectionTitle({ children }: { children: ReactNode }) {
+  const { token } = theme.useToken()
+  return (
+    <Typography.Text
+      strong
+      style={{ display: 'block', fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase', color: token.colorTextSecondary, marginBottom: -4 }}
+    >
+      {children}
+    </Typography.Text>
+  )
+}
+
+const QUICK_ACTIONS: { label: string; to: string; icon: ReactNode; roles: readonly Role[]; module?: keyof Modules }[] = [
+  { label: 'Mark attendance', to: '/attendance', icon: <CheckSquareOutlined />, roles: TEACHING, module: 'attendance' },
+  { label: 'Collect fee', to: '/fees/collect', icon: <DollarOutlined />, roles: FEE_STAFF, module: 'fees' },
+  { label: 'Admit student', to: '/students/new', icon: <UserAddOutlined />, roles: PRINCIPAL_ADMIN },
+]
+
+/** Greeting band in the school's colour, with the day and the user's most common actions. */
+function Welcome({ yearName, refreshing, onRefresh }: { yearName: string | null; refreshing: boolean; onRefresh: () => void }) {
   const { me, hasAnyRole } = useAuth()
+  const { token } = theme.useToken()
+  const hour = dayjs().hour()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const primary = /^#[0-9a-f]{6}$/i.test(token.colorPrimary) ? token.colorPrimary : null
+  const actions = QUICK_ACTIONS.filter((a) => hasAnyRole(a.roles) && (!a.module || me?.school.modules[a.module]))
+  return (
+    <Card
+      style={{
+        marginBottom: 16,
+        background: primary ? `linear-gradient(120deg, ${primary}1a 0%, ${primary}08 45%, ${token.colorBgContainer} 100%)` : undefined,
+        borderColor: primary ? `${primary}33` : undefined,
+      }}
+      styles={{ body: { padding: '16px 20px' } }}
+    >
+      <Flex justify="space-between" align="center" wrap gap={12}>
+        <div style={{ minWidth: 0 }}>
+          <Typography.Title level={3} style={{ margin: 0 }}>
+            {greeting}, {me?.user.fullName}
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            {dayjs().format('dddd, DD-MM-YYYY')}
+            {yearName && ` · Academic year ${yearName}`}
+          </Typography.Text>
+        </div>
+        <Flex gap={8} wrap>
+          {actions.map((a) => (
+            <Link key={a.to} to={a.to}>
+              <Button icon={a.icon}>{a.label}</Button>
+            </Link>
+          ))}
+          <Button icon={<ReloadOutlined />} loading={refreshing} onClick={onRefresh} aria-label="Refresh" />
+        </Flex>
+      </Flex>
+    </Card>
+  )
+}
+
+export function DashboardPage() {
+  const { hasAnyRole } = useAuth()
   const adminLike = hasAnyRole(PRINCIPAL_ADMIN)
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['dashboard'],
@@ -54,18 +149,7 @@ export function DashboardPage() {
 
   return (
     <>
-      <Flex justify="space-between" align="center" wrap gap={8} style={{ marginBottom: 16 }}>
-        <div>
-          <Typography.Title level={3} style={{ margin: 0 }}>
-            Welcome, {me?.user.fullName}
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            {dayjs().format('dddd, DD-MM-YYYY')}
-            {data?.academicYearName && ` · ${data.academicYearName}`}
-          </Typography.Text>
-        </div>
-        <Button icon={<ReloadOutlined />} loading={isFetching} onClick={() => refetch()} aria-label="Refresh" />
-      </Flex>
+      <Welcome yearName={data?.academicYearName ?? null} refreshing={isFetching} onRefresh={() => refetch()} />
       {adminLike && <SetupChecklist />}
       {isLoading ? (
         <Skeleton active />
@@ -123,6 +207,8 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
           <Col xs={12} lg={6}>
             <Stat
               title="Students"
+              icon={<TeamOutlined />}
+              color={TILE.blue}
               value={data.students.total}
               note={
                 <Typography.Text type="secondary">
@@ -137,6 +223,8 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
           <Col xs={12} lg={6}>
             <Stat
               title="Attendance today"
+              icon={<CarryOutOutlined />}
+              color={TILE.green}
               to="/attendance/today"
               value={a.nonWorkingReason ? '—' : a.percentage === null ? '—' : `${a.percentage}%`}
               note={
@@ -160,6 +248,8 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
             <Col xs={24} sm={12} lg={6}>
               <Stat
                 title="Collected today"
+                icon={<WalletOutlined />}
+                color={TILE.violet}
                 value={formatINR(f.collectedToday)}
                 note={<Typography.Text type="secondary">{formatINR(f.collectedThisMonth)} this month</Typography.Text>}
                 to="/fees/reports"
@@ -168,6 +258,8 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
             <Col xs={24} sm={12} lg={6}>
               <Stat
                 title="Dues outstanding"
+                icon={<FieldTimeOutlined />}
+                color={TILE.orange}
                 value={formatINR(f.outstanding)}
                 note={
                   f.overdue > 0 ? (
@@ -186,6 +278,7 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
       </Row>
 
       {/* Part-to-whole at a glance: today's attendance, the year's fees, how parents pay. */}
+      {(a || f) && <SectionTitle>At a glance</SectionTitle>}
       <Row gutter={[16, 16]}>
         {a && (
           <Col xs={24} md={12} xl={donutSpan}>
@@ -260,6 +353,7 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
       </Row>
 
       {/* Change over time. */}
+      {(a || f) && <SectionTitle>Trends</SectionTitle>}
       <Row gutter={[16, 16]}>
         {a && (
           <Col xs={24} lg={12}>
@@ -307,6 +401,7 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
       </Row>
 
       {/* Comparisons across classes and subjects. */}
+      {(data.students || a || data.upcomingExams || f) && <SectionTitle>Classes &amp; exams</SectionTitle>}
       <Row gutter={[16, 16]}>
         {data.students && (
           <Col xs={24} lg={12}>
@@ -378,6 +473,9 @@ function SchoolDashboard({ data, adminLike }: { data: Dashboard; adminLike: bool
       </Row>
 
       {/* To-dos and recent activity. */}
+      {((a && !a.nonWorkingReason && a.notMarked.length > 0) || data.upcomingExams || data.recentAdmissions) && (
+        <SectionTitle>To do &amp; recent</SectionTitle>
+      )}
       <Row gutter={[16, 16]}>
         {a && !a.nonWorkingReason && a.notMarked.length > 0 && (
           <Col xs={24} lg={12}>
@@ -453,18 +551,26 @@ function TeacherDashboard({ data }: { data: Dashboard }) {
   return (
     <Flex vertical gap={16}>
       <Row gutter={[12, 12]}>
-        <Col xs={8}>
-          <Stat title="My sections" value={t.sections.length} />
+        <Col xs={24} sm={8}>
+          <Stat title="My sections" icon={<TeamOutlined />} color={TILE.blue} value={t.sections.length} />
         </Col>
-        <Col xs={8}>
+        <Col xs={12} sm={8}>
           <Stat
             title="Attendance to take"
+            icon={<CarryOutOutlined />}
+            color={TILE.green}
             value={t.nonWorkingReason || t.sections.every((s) => s.marked === null) ? '—' : pendingAttendance.length}
             to={pendingAttendance.length ? '/attendance' : undefined}
           />
         </Col>
-        <Col xs={8}>
-          <Stat title="Marks to enter" value={t.marksPending.length} to={t.marksPending.length ? '/exams' : undefined} />
+        <Col xs={12} sm={8}>
+          <Stat
+            title="Marks to enter"
+            icon={<EditOutlined />}
+            color={TILE.amber}
+            value={t.marksPending.length}
+            to={t.marksPending.length ? '/exams' : undefined}
+          />
         </Col>
       </Row>
       {t.nonWorkingReason && <Alert type="info" showIcon title={`Today: ${t.nonWorkingReason}`} />}

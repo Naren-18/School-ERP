@@ -5,9 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
-import java.text.NumberFormat;
 import java.util.Base64;
-import java.util.Locale;
 import java.util.function.BiPredicate;
 
 import org.springframework.web.util.HtmlUtils;
@@ -15,6 +13,7 @@ import org.springframework.web.util.HtmlUtils;
 import com.openhtmltopdf.outputdevice.helper.ExternalResourceControlPriority;
 import com.openhtmltopdf.outputdevice.helper.ExternalResourceType;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import com.schoolerp.common.money.Rupees;
 
 /**
  * XHTML → PDF with the embedded DejaVu Sans font (it has the ₹ glyph; the
@@ -75,7 +74,7 @@ public final class HtmlPdf {
 
 	/** ₹1,23,456.00 (Indian grouping), escaped. */
 	public static String inr(BigDecimal amount) {
-		return esc(NumberFormat.getCurrencyInstance(Locale.of("en", "IN")).format(amount));
+		return esc(Rupees.withSymbol(amount));
 	}
 
 	/** An {@code <img>} with the image inlined as a data URI, or "" when there is no image. */

@@ -2,16 +2,18 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Alert, App, Button, Card, Checkbox, Col, DatePicker, Descriptions, Empty, Flex, Input, InputNumber, Result, Row, Select,
-  Space, Spin, Table, Tag, Typography,
+  Alert, App, Button, Card, Checkbox, Col, DatePicker, Descriptions, Divider, Empty, Flex, Input, InputNumber, Result, Row,
+  Select, Space, Spin, Table, Tag, Typography, theme,
 } from 'antd'
-import { PrinterOutlined } from '@ant-design/icons'
+import { CreditCardOutlined, PrinterOutlined } from '@ant-design/icons'
+import { isAxiosError } from 'axios'
 import dayjs from 'dayjs'
 import { errorMessage } from '../../api/client'
 import { feesApi, type Due, type PaymentMode, type Receipt } from '../../api/fees'
 import { studentsApi } from '../../api/students'
 import { PageHeader } from '../../components/PageHeader'
 import { API_DATE_FORMAT, DATE_FORMAT, formatDate, formatINR } from '../../utils/format'
+import { PaymentCancelled, payWithRazorpay } from '../../utils/razorpay'
 import { MODES, modeLabel } from './labels'
 import { openReceiptPdf } from './receiptPdf'
 
@@ -20,6 +22,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 /** Search a student → tick dues (part payments allowed) → mode → Collect → print. */
 export function CollectFeePage() {
   const { message } = App.useApp()
+  const { token } = theme.useToken()
   const queryClient = useQueryClient()
   const [params, setParams] = useSearchParams()
   const studentId = Number(params.get('student')) || undefined
@@ -48,6 +51,20 @@ export function CollectFeePage() {
   const selectedYear = openDues.find((d) => paying[d.id] !== undefined)?.academicYearId
   const total = round2(Object.values(paying).reduce((a, b) => a + (b || 0), 0))
 
+  const lines = () =>
+    Object.entries(paying)
+      .filter(([, amount]) => amount > 0)
+      .map(([dueId, amount]) => ({ dueId: Number(dueId), amount }))
+
+  const received = (receipt: Receipt) => {
+    setDone(receipt)
+    setPaying({})
+    setReference('')
+    queryClient.invalidateQueries({ queryKey: ['student-fees', studentId] })
+    queryClient.invalidateQueries({ queryKey: ['fee-receipts'] })
+    queryClient.invalidateQueries({ queryKey: ['fee-reports'] })
+  }
+
   const collect = useMutation({
     mutationFn: () =>
       feesApi.collect({
@@ -55,19 +72,32 @@ export function CollectFeePage() {
         paidOn: paidOn.format(API_DATE_FORMAT),
         paymentMode: mode,
         referenceNo: reference.trim() || undefined,
-        lines: Object.entries(paying)
-          .filter(([, amount]) => amount > 0)
-          .map(([dueId, amount]) => ({ dueId: Number(dueId), amount })),
+        lines: lines(),
       }),
-    onSuccess: (receipt) => {
-      setDone(receipt)
-      setPaying({})
-      setReference('')
-      queryClient.invalidateQueries({ queryKey: ['student-fees', studentId] })
-      queryClient.invalidateQueries({ queryKey: ['fee-receipts'] })
-      queryClient.invalidateQueries({ queryKey: ['fee-reports'] })
-    },
+    onSuccess: received,
     onError: (e) => message.error(errorMessage(e)),
+  })
+
+  // Online (Razorpay): the server fixes the order, the payment window takes the money,
+  // the server verifies it and creates the receipt.
+  const online = useQuery({ queryKey: ['fees-online-config'], queryFn: feesApi.onlineConfig, staleTime: Infinity })
+  const payOnline = useMutation({
+    mutationFn: async () => {
+      const order = await feesApi.startOnline(studentId!, lines())
+      const result = await payWithRazorpay(order, token.colorPrimary)
+      return feesApi.completeOnline(order.id, result)
+    },
+    onSuccess: received,
+    onError: (e) => {
+      if (e instanceof PaymentCancelled) {
+        message.info('Payment window closed. No receipt was made.')
+      } else if (e instanceof Error && !isAxiosError(e)) {
+        message.error(e.message)
+      } else {
+        message.error(errorMessage(e), 8)
+      }
+      queryClient.invalidateQueries({ queryKey: ['student-fees', studentId] })
+    },
   })
 
   const pickStudent = (id: number) => {
@@ -249,12 +279,32 @@ export function CollectFeePage() {
                   type="primary"
                   size="large"
                   block
-                  disabled={total <= 0 || (mode === 'CHEQUE' && !reference.trim())}
+                  disabled={total <= 0 || (mode === 'CHEQUE' && !reference.trim()) || payOnline.isPending}
                   loading={collect.isPending}
                   onClick={() => collect.mutate()}
                 >
                   Collect {total > 0 ? formatINR(total) : ''}
                 </Button>
+                {online.data?.enabled && (
+                  <>
+                    <Divider plain style={{ margin: '4px 0', fontSize: 12 }}>
+                      or
+                    </Divider>
+                    <Button
+                      size="large"
+                      block
+                      icon={<CreditCardOutlined />}
+                      disabled={total <= 0 || collect.isPending}
+                      loading={payOnline.isPending}
+                      onClick={() => payOnline.mutate()}
+                    >
+                      Pay {total > 0 ? formatINR(total) : ''} online
+                    </Button>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      UPI, card or netbanking through Razorpay. The receipt is made once the payment is confirmed.
+                    </Typography.Text>
+                  </>
+                )}
               </Space>
             </Card>
           </Col>

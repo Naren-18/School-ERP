@@ -1,5 +1,6 @@
 import { api } from './client'
 import type { Section } from './academic'
+import type { History, SendReport } from './notifications'
 
 export interface Band {
   id?: number
@@ -168,6 +169,10 @@ export const examsApi = {
 
   results: (examId: number, sectionId: number) =>
     data(api.get<ResultSheet>(`/exams/${examId}/results`, { params: { sectionId } })),
+  resultMessages: (examId: number, sectionId: number) =>
+    data(api.get<History[]>(`/exams/${examId}/results/notifications`, { params: { sectionId } })),
+  notifyResults: (examId: number, sectionId: number, studentIds: number[]) =>
+    data(api.post<SendReport>(`/exams/${examId}/results/notify`, { studentIds }, { params: { sectionId } })),
   studentResults: (studentId: number) => data(api.get<StudentResults>(`/exams/students/${studentId}/results`)),
   reportCards: (params: { sectionId: number; examId?: number; studentId?: number }) =>
     data(api.get<Blob>('/exams/report-cards.pdf', { params, responseType: 'blob' })),

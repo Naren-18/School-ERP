@@ -732,6 +732,55 @@ them (5 tests). Checked in the browser at desktop and 360 px with no sideways sc
 
 ---
 
+## Parent messages, online payment and demo wins (Phase 9b)
+
+Built for sales demos, after the user's market questions (what schools ask for) and a
+cost check (WhatsApp utility messages cost a fraction of a rupee; about ₹1,100 a month
+for a 1,000-student school without announcements).
+
+**Decisions taken with the owner:** messages go to real guardian numbers (test mode:
+up to 5 registered phones); principal, admin and teachers send absence alerts;
+online payment is Razorpay test mode at the counter; one platform account each from
+`.env`; absent only, primary contact only, English, re-sending allowed with a warning,
+delivery ticks later, payment confirmations for cash too.
+
+**Built:** WhatsApp consent, the `notification` module and log, absence alerts, fee
+reminders, payment confirmations, results messages, per-school message switches,
+Razorpay at the counter, a TC dues warning, `DEMO.md`, and a dashboard redesign
+(greeting band with quick actions, icon tiles, grouped sections). Details in
+ARCHITECTURE.md §8.
+
+**Problems found:**
+- **Java groups en-IN amounts in threes** (₹123,456.00). Receipts and report cards
+  were wrong for amounts of a lakh and more; demo amounts were smaller, so nobody saw
+  it. Fixed with a small `Rupees` formatter, unit-tested.
+- **Sending from a transaction listener would hold two connections** per payment
+  (the committed one is still held during after-commit callbacks), which can stall
+  the pool under load. Confirmations are sent by the controller after the
+  transaction instead, which also keeps the demo seeder from sending anything.
+- **PLAN.md had Phase 10 and 11 ticked from the start.** Unticked, except what the
+  demo deployment really did.
+- **No Docker on the development laptop.** The suite was run against a portable
+  PostgreSQL 16 from a scratch copy (Testcontainers swapped for a local URL, outside
+  the repository), and the browser check used a production build served locally
+  with headless Edge screenshots. The project's own test setup is unchanged.
+- A `postcss.config.mjs` in a folder above the repository (from another project)
+  broke `vite build`; noted in README troubleshooting.
+
+**Tests (140):** absence alerts (consent, failures, re-send, teacher scope, switches,
+log, School A vs B, module off), fee reminders, payment confirmations, online
+payment (forged signature, double completion, refused payment, dues changed, School
+A vs B), results messages, CSV consent column, `Rupees`. WhatsApp and Razorpay are
+replaced by stand-ins in tests (`FakeIntegrations`); the real services have not been
+called yet.
+
+**Browser check:** desktop and 360 px for the dashboard, attendance alerts (sent and
+logged), dues reminders, results dialog, TC warning, preferences, message log,
+admission form; no sideways scroll. Razorpay's own payment window was not opened
+(no keys in the check).
+
+---
+
 ## 17. Cross-cutting threads
 
 ### Security, as built

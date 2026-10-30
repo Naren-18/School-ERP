@@ -39,6 +39,11 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY}
       DEMO_SEED_PASSWORD: ${DEMO_SEED_PASSWORD}
+      # Optional: empty keeps WhatsApp log-only and online payment off.
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
     volumes:
       - app-files:/data/files
     mem_limit: 1g

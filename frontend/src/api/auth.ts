@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { Modules } from './school'
+import type { Messages, Modules } from './school'
 
 export type Role = 'PRINCIPAL' | 'ADMIN' | 'ACCOUNTANT' | 'TEACHER'
 
@@ -26,6 +26,7 @@ export interface SchoolSummary extends Branding {
   board: string
   medium: string
   modules: Modules
+  messages: Messages
 }
 
 export interface Me {

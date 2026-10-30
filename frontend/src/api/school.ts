@@ -10,12 +10,21 @@ export interface Modules {
   certificates: boolean
 }
 
+/** Which WhatsApp messages to parents the school sends. */
+export interface Messages {
+  absence: boolean
+  feeReminder: boolean
+  paymentReceived: boolean
+  resultsPublished: boolean
+}
+
 export interface SchoolSettings {
   receiptPrefix: string
   certificatePrefix: string
   weekOffDays: DayOfWeek[]
   modules: Modules
   reportCard: { showRank: boolean; showAttendance: boolean }
+  messages: Messages
 }
 
 export interface SchoolProfile {

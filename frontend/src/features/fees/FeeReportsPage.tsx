@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Button, Card, Checkbox, Col, DatePicker, Flex, Progress, Row, Statistic, Table, Tabs } from 'antd'
-import { DownloadOutlined } from '@ant-design/icons'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { App, Button, Card, Checkbox, Col, DatePicker, Flex, Progress, Row, Statistic, Table, Tabs } from 'antd'
+import { DownloadOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
+import { errorMessage } from '../../api/client'
 import { feesApi, type ClassSummary, type DueRow } from '../../api/fees'
+import { useAuth } from '../../auth/useAuth'
 import { PageHeader } from '../../components/PageHeader'
+import { showSendReport } from '../../components/showSendReport'
 import { downloadCsv } from '../../utils/csv'
 import { API_DATE_FORMAT, DATE_FORMAT, formatDate, formatINR } from '../../utils/format'
 import { SectionSelect } from '../students/SectionSelect'
@@ -86,14 +89,37 @@ function CollectionTab() {
 }
 
 function DuesTab() {
+  const { message, modal } = App.useApp()
+  const { me } = useAuth()
+  const remindersOn = !!me?.school.messages.feeReminder
   const currentYear = useYears().data?.find((y) => y.current)
   const [sectionId, setSectionId] = useState<number>()
   const [overdueOnly, setOverdueOnly] = useState(true)
+  const [selected, setSelected] = useState<number[]>([])
   const { data = [], isLoading } = useQuery({
     queryKey: ['fee-reports', 'dues', sectionId, overdueOnly],
     queryFn: () => feesApi.dues({ sectionId, overdueOnly }),
   })
   const sum = (f: (r: DueRow) => number) => data.reduce((s, r) => s + f(r), 0)
+  // Ticks only count for students still on the list after a filter change.
+  const chosen = selected.filter((id) => data.some((r) => r.studentId === id))
+
+  const remind = useMutation({
+    mutationFn: () => feesApi.remind(chosen),
+    onSuccess: (report) => {
+      setSelected([])
+      showSendReport(modal, report)
+    },
+    onError: (e) => message.error(errorMessage(e)),
+  })
+  const confirmRemind = () =>
+    modal.confirm({
+      title: `Send a WhatsApp fee reminder to ${chosen.length} parent${chosen.length === 1 ? '' : 's'}?`,
+      content: 'Each message states the student\'s outstanding balance. Parents who have not agreed to WhatsApp messages are skipped.',
+      okText: 'Send reminders',
+      onOk: () => remind.mutateAsync(),
+    })
+
   return (
     <>
       <Flex gap={8} wrap align="center" style={{ marginBottom: 16 }}>
@@ -101,6 +127,17 @@ function DuesTab() {
         <Checkbox checked={overdueOnly} onChange={(e) => setOverdueOnly(e.target.checked)}>
           Overdue only
         </Checkbox>
+        {remindersOn && (
+          <Button
+            type="primary"
+            icon={<WhatsAppOutlined />}
+            disabled={chosen.length === 0}
+            loading={remind.isPending}
+            onClick={confirmRemind}
+          >
+            {chosen.length ? `Remind ${chosen.length} on WhatsApp` : 'Tick students to remind'}
+          </Button>
+        )}
         <Button
           icon={<DownloadOutlined />}
           disabled={!data.length}
@@ -118,21 +155,27 @@ function DuesTab() {
         loading={isLoading}
         dataSource={data}
         scroll={{ x: true }}
+        rowSelection={
+          remindersOn
+            ? { selectedRowKeys: chosen, onChange: (keys) => setSelected(keys as number[]), preserveSelectedRowKeys: false }
+            : undefined
+        }
         pagination={{ pageSize: 50, hideOnSinglePage: true }}
         locale={{ emptyText: overdueOnly ? 'Nothing overdue' : 'Nothing due' }}
         summary={() =>
           data.length ? (
             <Table.Summary.Row>
-              <Table.Summary.Cell index={0} colSpan={3}>
+              {remindersOn && <Table.Summary.Cell index={0} />}
+              <Table.Summary.Cell index={remindersOn ? 1 : 0} colSpan={3}>
                 <b>{data.length} students</b>
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={1} align="right">
+              <Table.Summary.Cell index={remindersOn ? 4 : 3} align="right">
                 <b>{formatINR(sum((r) => r.balance))}</b>
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={2} align="right">
+              <Table.Summary.Cell index={remindersOn ? 5 : 4} align="right">
                 <b>{formatINR(sum((r) => r.overdue))}</b>
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={3} />
+              <Table.Summary.Cell index={remindersOn ? 6 : 5} />
             </Table.Summary.Row>
           ) : null
         }

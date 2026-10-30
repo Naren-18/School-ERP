@@ -35,6 +35,8 @@ export interface StudentDetailsInput {
   previousSchool?: string | null
   previousTcNo?: string | null
   guardians: GuardianInput[]
+  /** OK to send WhatsApp messages to the primary contact. */
+  whatsappConsent: boolean
 }
 
 export interface Placement {
@@ -103,6 +105,7 @@ export interface StudentDetail {
   leavingReason: string | null
   hasPhoto: boolean
   photoVersion: number
+  whatsappConsent: boolean
   guardians: Guardian[]
   currentEnrollment: EnrollmentView | null
   enrollments: EnrollmentView[]

@@ -72,7 +72,8 @@ public class SchoolService {
 		if (settings.weekOffDays().size() >= 7) {
 			throw new BadRequestException("At least one working day is required");
 		}
-		school.setSettings(settings);
+		school.setSettings(settings.messages() != null ? settings
+				: settings.withMessages(school.getSettings().messages()));
 		audit.log(AuditAction.UPDATE, "school", school.getId(), Map.of("section", "settings"));
 		return SchoolProfileResponse.of(school);
 	}

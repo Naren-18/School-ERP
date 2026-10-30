@@ -93,6 +93,7 @@ export function StudentFormPage() {
         address: blank(v.address),
         previousSchool: blank(v.previousSchool),
         previousTcNo: blank(v.previousTcNo),
+        whatsappConsent: !!v.whatsappConsent,
         guardians: v.guardians.filter((g) => !isBlankContact(g)).map((g: GuardianInput) => ({
           ...g,
           fullName: g.fullName.trim(),
@@ -324,6 +325,14 @@ export function StudentFormPage() {
                   </>
                 )}
               </Form.List>
+              <Form.Item
+                name="whatsappConsent"
+                valuePropName="checked"
+                style={{ marginTop: 16, marginBottom: 0 }}
+                extra="Absence alerts, fee reminders, payment confirmations and results go to the primary contact's mobile number."
+              >
+                <Checkbox>Parent agrees to receive WhatsApp messages from the school</Checkbox>
+              </Form.Item>
             </Card>
           </Col>
 

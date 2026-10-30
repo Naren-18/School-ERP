@@ -22,6 +22,7 @@ share one deployment; each school is fully isolated, with its own logins and dat
 | 7 | Certificates (bonafide, TC), editable templates, report card remarks and co-scholastic grades | Done |
 | 8 | School dashboard: role-aware stats, donut, trend and comparison charts, teacher view | Done |
 | 9 | Demo data: three fictional schools, about 390 students each, a one-off seeder | Done |
+| 9b | Parent messages on WhatsApp (absence, fee reminder, payment, results; consent; log), online fee payment at the counter (Razorpay), TC dues warning, dashboard redesign | Done (WhatsApp and Razorpay tested with stand-ins; real keys not yet tried) |
 | 10 | Production deployment | Next |
 | 11 | Demo polish | Not started |
 
@@ -134,7 +135,9 @@ The sidebar shows only what your role allows.
 
 The first screen after login. It refreshes every 5 minutes, or with the refresh button.
 
-- **Principal and admin:**
+- **Everyone:** a greeting band in the school's colour with the date, the academic year
+  and quick actions for the role (Mark attendance, Collect fee, Admit student).
+- **Principal and admin:** grouped as At a glance, Trends, Classes & exams, To do & recent.
   - Headline numbers: active students; today's attendance % and how many sections are
     marked; fees collected today and this month; dues outstanding and overdue.
   - Charts: attendance % and fees collected over the last 14 days, and students by
@@ -221,9 +224,32 @@ Switch it on or off under **Setup → Modules & preferences**.
 5. **Fees → Reports:**
    - **Collection:** money received per day and mode.
    - **Dues:** who owes what, optionally overdue only, with Call and Collect links.
+     Tick students and press **Remind on WhatsApp** to send each parent their balance.
    - **By class:** expected vs. collected.
 
    Each report has **Export CSV**.
+6. **Online payment (Razorpay):** when the Razorpay keys are set, Collect fee also shows
+   **Pay online**. The payment window takes UPI, card or netbanking; the receipt
+   (mode Online, the Razorpay payment id as reference) is made only after the server
+   has checked the payment with Razorpay.
+7. **Every receipt** (cash or online) sends the parent a WhatsApp confirmation, if the
+   parent agreed and the school has payment confirmations switched on.
+
+### WhatsApp messages to parents
+
+- **Consent:** tick *Parent agrees to receive WhatsApp messages* on the admission form
+  (or put `YES` in the `whatsapp_consent` CSV column). Nobody else is messaged. It goes
+  to the primary contact's mobile number.
+- **Absence alerts:** after saving attendance, **Tell parents of absent students** lists
+  the absentees (ticked unless already messaged that day) with one send button.
+  Teachers send for their own sections, today only.
+- **Fee reminders** (Fee reports → Dues), **payment confirmations** (automatic) and
+  **results messages** (Results → **Tell parents**, published exams only, principal/admin).
+- **Setup → Modules & preferences → WhatsApp messages** switches each kind on or off.
+- **WhatsApp messages** (sidebar, principal/admin): every message tried, sent or failed
+  with the reason, filterable by date, kind, status, student or phone.
+- Without WhatsApp keys, messages are only written to the backend log and the screens
+  say *WhatsApp is not connected yet*. See [WhatsApp and Razorpay](#whatsapp-and-razorpay).
 
 ### Exams
 
@@ -273,6 +299,9 @@ Switch it on or off under **Setup → Modules & preferences**.
    - **Transfer certificate**: date and reason for leaving, conduct, promotion and
      remarks. Issuing a TC marks an active student as left and sets the status to
      **TC issued**. A TC can be issued only once.
+   - When the student still owes fees, the TC dialog shows the balance (and how much
+     is overdue) with a **Collect fee** link; issuing needs a tick on *Issue the TC
+     anyway*.
    - **Preview** shows the PDF first; **Issue** numbers it and opens it for printing.
 2. **Numbers** look like `SSV/BON/0001` and `SSV/TC/0001`: the certificate prefix from
    preferences, the type, and a gap-free counter per school and type.
@@ -295,12 +324,63 @@ needed), follow [`deploy/demo/README.md`](deploy/demo/README.md). It runs the `p
 profile with its own database and secrets, and seeds the three demo schools once.
 The production setup (R2, backups, `make deploy`) is Phase 10.
 
+## WhatsApp and Razorpay
+
+Both are optional. Keys go **only** in `.env` (git-ignored; on the demo server
+`deploy/demo/.env`), never in the code. Empty keys: WhatsApp messages are written to
+the backend log, and online payment is hidden. Restart the backend after changing them.
+
+```
+WHATSAPP_ACCESS_TOKEN=
+WHATSAPP_PHONE_NUMBER_ID=
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+```
+
+### Razorpay (test mode is free)
+
+1. Sign up at dashboard.razorpay.com (test mode needs no KYC; choose an individual /
+   unregistered business if asked for a PAN).
+2. Switch on **Test Mode** → **Account & Settings → API Keys → Generate Test Key**.
+3. Put the Key ID (`rzp_test_…`) and the secret in `.env`.
+4. In the payment window use Razorpay's test UPI ids or cards (listed in their docs);
+   no real money moves. Live keys need full KYC, and the money then goes to the
+   account that owns the keys (one platform account for now; per-school accounts
+   are future work).
+
+### WhatsApp (Meta Cloud API)
+
+1. developers.facebook.com → **Create app** → WhatsApp use case. (A brand-new Facebook
+   account may have to wait before it can create a business portfolio.)
+2. **WhatsApp → API Setup** shows the test sender number and its **Phone number ID**.
+   Add up to 5 of your own phones as test recipients there; test mode only delivers
+   to those, so give a few demo students one of these numbers as primary contact
+   and tick their consent.
+3. Use a **system user token** (Business settings → Users → System users, permissions
+   `whatsapp_business_messaging` and `whatsapp_business_management`); the token on
+   the API Setup page expires in 24 hours.
+4. Create these templates (**WhatsApp Manager → Message templates**), category
+   **Utility**, language **English** (`en`), with exactly these names and placeholders:
+
+| Name | Body |
+|---|---|
+| `absence_alert` | Dear Parent, {{1}} of {{2}} was marked absent at {{3}} on {{4}}. If you were not aware of this, please contact the school. |
+| `fee_reminder` | Dear Parent, a fee balance of ₹{{1}} is pending for {{2}} of {{3}} at {{4}}. Please pay at the school office at the earliest. Kindly ignore this message if already paid. |
+| `payment_received` | Dear Parent, we have received ₹{{1}} towards the fees of {{2}} ({{3}}). Receipt no. {{4}} dated {{5}}, issued by {{6}}. Thank you. |
+| `results_published` | Dear Parent, the results of {{1}} for {{2}} of {{3}} are now available at {{4}}. Please contact the class teacher for the report card. |
+
+Placeholders: student name, class, school, date (DD-MM-YYYY), amount (`1,23,456.00`),
+receipt number, exam name, in the order the app sends them (see `MessageType`).
+Going live needs Meta business verification, a dedicated number and a payment method
+on Meta; messages are charged per message (utility rate). Parents not on WhatsApp
+show as *Failed* in the log.
+
 ## Testing
 
 ### Automated
 
 ```sh
-cd backend && ./mvnw clean test       # 122 tests; needs Docker running (Testcontainers)
+cd backend && ./mvnw clean test       # 140 tests; needs Docker running (Testcontainers)
 cd frontend && npm run build && npm run lint
 ```
 
@@ -351,6 +431,10 @@ docker exec -it school-erp-db psql -U school -d school_erp
 | Login says "Invalid school code, username or password" | Check for spaces in the password; school codes are `ssv` / `gps` in dev. After 10 failures in 15 minutes the username is locked for 15 minutes. |
 | Tests fail with `Unresolved compilation problem` while your backend is running | Don't `clean` (the running app locks `target/`). Delete just the broken files: `grep -rlE "Unresolved compilation" --include=*.class target | xargs rm -f`, then run the tests again. |
 | Docker / database not reachable | Start Docker Desktop, then `docker compose up -d`. |
+| Frontend build fails with `Cannot find module '@tailwindcss/postcss'` | Vite found a `postcss.config.*` in a folder *above* the project (from another project). Move or rename that file; this project has no PostCSS config. |
+| WhatsApp screens say "not connected" | `WHATSAPP_ACCESS_TOKEN` or `WHATSAPP_PHONE_NUMBER_ID` is empty for the backend. Set both in `.env` and restart it. |
+| A WhatsApp message failed | The reason is in **WhatsApp messages** (sidebar). Common: the template isn't approved yet, the number isn't a test recipient (test mode), or the token expired. |
+| No "Pay online" on Collect fee | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` are empty for the backend. |
 
 ## Project layout
 

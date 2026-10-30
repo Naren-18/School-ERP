@@ -62,7 +62,8 @@ export function StudentImportPage() {
         <Typography.Paragraph>
           Fill the template in Excel or Google Sheets and save it as <b>CSV</b>. Dates are <b>DD-MM-YYYY</b>; class and
           section must match names under Setup (e.g. "Class 5" and "A"). Each student needs at least one parent mobile
-          number. Nothing is saved until every row is valid.
+          number. Put <b>YES</b> in <b>whatsapp_consent</b> for parents who agreed to WhatsApp messages (empty means
+          no). Nothing is saved until every row is valid.
         </Typography.Paragraph>
         <Upload.Dragger
           accept=".csv,text/csv"

@@ -1,13 +1,15 @@
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, App, Button, Card, DatePicker, Empty, Flex, Select, Skeleton, Typography } from 'antd'
-import { CheckCircleFilled, CheckOutlined } from '@ant-design/icons'
+import { Alert, App, Button, Card, Checkbox, DatePicker, Empty, Flex, Select, Skeleton, Tag, Typography } from 'antd'
+import { CheckCircleFilled, CheckOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { attendanceApi, type AttendanceStatus, type SheetStudent } from '../../api/attendance'
 import { errorMessage } from '../../api/client'
 import { useAuth } from '../../auth/useAuth'
 import { PageHeader } from '../../components/PageHeader'
+import { NotConnectedNote } from '../../components/SendReportSummary'
+import { showSendReport } from '../../components/showSendReport'
 import { PRINCIPAL_ADMIN } from '../../layout/menu'
 import { API_DATE_FORMAT, DATE_FORMAT, formatDateTime } from '../../utils/format'
 import { STATUS } from './statusStyle'
@@ -58,6 +60,7 @@ export function MarkAttendancePage() {
       queryClient.setQueryData(['attendance-sheet', sectionId, date], saved)
       queryClient.invalidateQueries({ queryKey: ['attendance-sections'] })
       queryClient.invalidateQueries({ queryKey: ['attendance-today'] })
+      queryClient.invalidateQueries({ queryKey: ['absence-alerts', sectionId, date] })
       setChanges({})
       message.success(`Saved: ${saved.counts.present} present, ${saved.counts.absent} absent`)
     },
@@ -157,6 +160,10 @@ export function MarkAttendancePage() {
             ))}
           </Card>
 
+          {data.marked && data.counts.absent > 0 && sectionId && (
+            <AbsenceAlertsCard key={`${sectionId}-${date}`} sectionId={sectionId} date={date} />
+          )}
+
           {editable && (
             <div style={{ position: 'sticky', bottom: 0, padding: '12px 0', background: 'var(--ant-color-bg-layout)', zIndex: 5 }}>
               <Button
@@ -175,6 +182,107 @@ export function MarkAttendancePage() {
         </>
       )}
     </>
+  )
+}
+
+/**
+ * After saving: the absent students, ticked unless already messaged today, and
+ * one button to WhatsApp their parents. Hidden when the school switched it off.
+ */
+function AbsenceAlertsCard({ sectionId, date }: { sectionId: number; date: string }) {
+  const { message, modal } = App.useApp()
+  const queryClient = useQueryClient()
+  const alerts = useQuery({
+    queryKey: ['absence-alerts', sectionId, date],
+    queryFn: () => attendanceApi.absenceAlerts(sectionId, date),
+  })
+  /** null until the user changes the ticks: then everyone not yet messaged is ticked. */
+  const [picked, setPicked] = useState<number[] | null>(null)
+  const students = alerts.data?.students ?? []
+  const selected = picked ?? students.filter((s) => s.lastStatus !== 'SENT').map((s) => s.studentId)
+
+  const send = useMutation({
+    mutationFn: () => attendanceApi.sendAbsenceAlerts(sectionId, date, selected),
+    onSuccess: (report) => {
+      setPicked(null)
+      queryClient.invalidateQueries({ queryKey: ['absence-alerts', sectionId, date] })
+      showSendReport(modal, report)
+    },
+    onError: (e) => message.error(errorMessage(e)),
+  })
+
+  if (!alerts.data?.enabled || students.length === 0) {
+    return null
+  }
+  const again = selected.filter((id) => students.find((s) => s.studentId === id)?.lastStatus === 'SENT').length
+  const confirmAndSend = () => {
+    if (again === 0) {
+      send.mutate()
+      return
+    }
+    modal.confirm({
+      title: 'Send again?',
+      content: `${again} of these parents already got an absence alert for this day.`,
+      okText: 'Send again',
+      onOk: () => send.mutateAsync(),
+    })
+  }
+
+  return (
+    <Card
+      size="small"
+      style={{ marginTop: 12 }}
+      title={
+        <span>
+          <WhatsAppOutlined style={{ color: '#128c7e', marginRight: 8 }} />
+          Tell parents of absent students
+        </span>
+      }
+    >
+      <Flex vertical gap={12}>
+        {!alerts.data.connected && <NotConnectedNote />}
+        <Checkbox.Group value={selected} onChange={(v) => setPicked(v as number[])} style={{ width: '100%' }}>
+          <Flex vertical style={{ width: '100%' }}>
+            {students.map((s) => (
+              <Flex
+                key={s.studentId}
+                justify="space-between"
+                align="center"
+                gap={8}
+                style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0', minHeight: 44 }}
+              >
+                <Checkbox value={s.studentId} style={{ minWidth: 0 }}>
+                  <Typography.Text type="secondary">{s.rollNo ?? '–'}.</Typography.Text> {s.fullName}
+                </Checkbox>
+                {s.lastStatus === 'SENT' ? (
+                  <Tag color="green" style={{ marginInlineEnd: 0 }}>
+                    Sent {dayjs(s.lastAt).format('hh:mm A')}
+                  </Tag>
+                ) : s.lastStatus === 'FAILED' ? (
+                  <Tag color="red" style={{ marginInlineEnd: 0 }}>
+                    Failed
+                  </Tag>
+                ) : null}
+              </Flex>
+            ))}
+          </Flex>
+        </Checkbox.Group>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Only parents who agreed to WhatsApp messages (ticked on the admission form) are messaged.
+        </Typography.Text>
+        <Button
+          type="primary"
+          size="large"
+          block
+          icon={<WhatsAppOutlined />}
+          disabled={selected.length === 0}
+          loading={send.isPending}
+          onClick={confirmAndSend}
+        >
+          Send WhatsApp to {selected.length} parent{selected.length === 1 ? '' : 's'}
+        </Button>
+      </Flex>
+    </Card>
   )
 }
 

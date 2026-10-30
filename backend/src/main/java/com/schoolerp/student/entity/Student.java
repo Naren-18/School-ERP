@@ -122,6 +122,10 @@ public class Student extends TenantEntity {
 	@Column(name = "leaving_reason")
 	private String leavingReason;
 
+	/** The parent agreed to WhatsApp messages on the primary contact's number. */
+	@Column(name = "whatsapp_consent", nullable = false)
+	private boolean whatsappConsent;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private OffsetDateTime createdAt;

@@ -24,7 +24,9 @@ import com.schoolerp.common.dto.PageResponse;
 import com.schoolerp.fee.dto.FeeDto;
 import com.schoolerp.fee.service.FeeCollectionService;
 import com.schoolerp.fee.service.FeeDueService;
+import com.schoolerp.fee.service.FeeMessageService;
 import com.schoolerp.fee.service.ReceiptPdfService;
+import com.schoolerp.notification.dto.NotificationDto;
 import com.schoolerp.school.module.Module;
 import com.schoolerp.school.module.RequiresModule;
 
@@ -47,6 +49,8 @@ public class FeeController {
 
 	private final ReceiptPdfService pdf;
 
+	private final FeeMessageService messages;
+
 	@GetMapping("/students/{studentId}")
 	FeeDto.StudentFees studentFees(@PathVariable Long studentId) {
 		return collection.studentFees(studentId);
@@ -57,10 +61,19 @@ public class FeeController {
 		return dueService.setConcession(dueId, request);
 	}
 
+	/** Records the payment; afterwards (receipt saved) the parent gets a WhatsApp confirmation if set up. */
 	@PostMapping("/receipts")
 	@ResponseStatus(HttpStatus.CREATED)
 	FeeDto.Receipt collect(@Valid @RequestBody FeeDto.CollectRequest request) {
-		return collection.collect(request);
+		FeeDto.Receipt receipt = collection.collect(request);
+		messages.confirmPayment(receipt.id());
+		return receipt;
+	}
+
+	/** WhatsApp reminders to the parents of students chosen on the dues report. */
+	@PostMapping("/reminders")
+	NotificationDto.SendReport remind(@Valid @RequestBody FeeDto.ReminderRequest request) {
+		return messages.remind(request);
 	}
 
 	/** Receipts in a date range (default: the last 30 days), newest first. */

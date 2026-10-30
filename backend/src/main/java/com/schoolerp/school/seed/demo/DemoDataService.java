@@ -327,7 +327,8 @@ public class DemoDataService {
 			schoolService.updateProfile(new UpdateSchoolProfileRequest(spec.name(), spec.board(), spec.medium(), spec.address(),
 					spec.phone(), spec.email(), spec.color()));
 			schoolService.updateSettings(new SchoolSettings(spec.prefix(), spec.prefix(), spec.weekOff(),
-					new SchoolSettings.Modules(true, true, true, true), new SchoolSettings.ReportCard(spec.showRank(), true)));
+					new SchoolSettings.Modules(true, true, true, true), new SchoolSettings.ReportCard(spec.showRank(), true),
+					new SchoolSettings.Messages(true, true, true, true)));
 			schoolService.uploadLogo(resource(spec.logo()));
 		}
 
@@ -514,7 +515,7 @@ public class DemoDataService {
 					+ ", " + DemoNames.pick(random, DemoNames.LOCALITIES) + ", " + spec.town();
 			StudentDto.Details details = new StudentDto.Details(admissionNo, admitted, first, surname, dob,
 					girl ? Student.Gender.FEMALE : Student.Gender.MALE, motherTongue(), category(), religion(), null, null,
-					null, address, recent ? "Previous school, " + spec.town() : null, null, guardians);
+					null, address, recent ? "Previous school, " + spec.town() : null, null, guardians, null);
 			Long studentId = studentService.create(new StudentDto.CreateRequest(details,
 					new StudentDto.Placement(sectionId, null, joinedOn))).id();
 			double ability = clamp(0.68 + random.nextGaussian() * 0.15, 0.25, 0.99);

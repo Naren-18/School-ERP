@@ -20,7 +20,8 @@ class SchoolErpApplicationTests extends IntegrationTest {
 				SELECT count(*) FROM information_schema.tables
 				WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history'
 				""", Integer.class);
-		assertThat(tables).isEqualTo(31); // V1: 28, V2: certificate_counter, co_scholastic_area, report_card_note
+		// V1: 28, V2: certificate_counter, co_scholastic_area, report_card_note, V3: notification_log, online_payment
+		assertThat(tables).isEqualTo(33);
 	}
 
 	@Test

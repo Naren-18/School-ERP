@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import com.jayway.jsonpath.JsonPath;
 import com.schoolerp.support.AcademicFixtures;
+import com.schoolerp.support.FakeIntegrations;
 import com.schoolerp.support.TenantFixtures;
 import com.schoolerp.support.TenantFixtures.TestUser;
 
@@ -27,7 +28,7 @@ import com.schoolerp.support.TenantFixtures.TestUser;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import({ TestcontainersConfiguration.class, TenantFixtures.class, AcademicFixtures.class })
+@Import({ TestcontainersConfiguration.class, TenantFixtures.class, AcademicFixtures.class, FakeIntegrations.class })
 public abstract class IntegrationTest {
 
 	@Autowired
