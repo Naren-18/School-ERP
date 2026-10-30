@@ -366,7 +366,7 @@ RAZORPAY_KEY_SECRET=
 |---|---|
 | `absence_alert` | Dear Parent, {{1}} of {{2}} was marked absent at {{3}} on {{4}}. If you were not aware of this, please contact the school. |
 | `fee_reminder` | Dear Parent, a fee balance of ₹{{1}} is pending for {{2}} of {{3}} at {{4}}. Please pay at the school office at the earliest. Kindly ignore this message if already paid. |
-| `payment_received` | Dear Parent, we have received ₹{{1}} towards the fees of {{2}} ({{3}}). Receipt no. {{4}} dated {{5}}. Thank you, {{6}}. |
+| `payment_received` | Dear Parent, we have received ₹{{1}} towards the fees of {{2}} ({{3}}). Receipt no. {{4}} dated {{5}}, issued by {{6}}. Thank you. |
 | `results_published` | Dear Parent, the results of {{1}} for {{2}} of {{3}} are now available at {{4}}. Please contact the class teacher for the report card. |
 
 Placeholders: student name, class, school, date (DD-MM-YYYY), amount (`1,23,456.00`),
