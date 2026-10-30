@@ -52,6 +52,15 @@ app:
     key: ${APP_ENCRYPTION_KEY}
   files:
     local-dir: ${FILE_STORAGE_LOCAL_DIR:./data/files}
+  # WhatsApp (Meta Cloud API). Both empty: messages are only written to the log.
+  whatsapp:
+    access-token: ${WHATSAPP_ACCESS_TOKEN:}
+    phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
+    api-version: ${WHATSAPP_API_VERSION:v23.0}
+  # Razorpay (test keys start with rzp_test_). Both empty: online payment is off.
+  razorpay:
+    key-id: ${RAZORPAY_KEY_ID:}
+    key-secret: ${RAZORPAY_KEY_SECRET:}
   # Demo schools (profile "demo" + --seed-demo). The password is required, never defaulted.
   demo:
     password: ${DEMO_SEED_PASSWORD:}

@@ -1,4 +1,5 @@
 import { api } from './client'
+import type { MessageStatus, SendReport } from './notifications'
 
 export type AttendanceStatus = 'P' | 'A' | 'L' | 'H'
 
@@ -83,6 +84,23 @@ export interface Today {
   unmarkedSections: { sectionId: number; label: string; enrolled: number }[]
 }
 
+/** A student marked absent, and the last WhatsApp alert tried for them that day. */
+export interface AbsentStudent {
+  studentId: number
+  rollNo: number | null
+  fullName: string
+  lastStatus: MessageStatus | null
+  lastAt: string | null
+}
+
+export interface AbsenceAlerts {
+  /** The school's switch for absence alerts. */
+  enabled: boolean
+  /** False when WhatsApp keys are not set on the server (messages are only logged). */
+  connected: boolean
+  students: AbsentStudent[]
+}
+
 const data = <T,>(p: Promise<{ data: T }>) => p.then((r) => r.data)
 
 export const attendanceApi = {
@@ -98,4 +116,8 @@ export const attendanceApi = {
   studentMonth: (studentId: number, month: string) =>
     data(api.get<StudentMonth>(`/attendance/students/${studentId}`, { params: { month } })),
   today: (date?: string) => data(api.get<Today>('/attendance/today', { params: { date } })),
+  absenceAlerts: (sectionId: number, date: string) =>
+    data(api.get<AbsenceAlerts>(`/attendance/sections/${sectionId}/absence-alerts`, { params: { date } })),
+  sendAbsenceAlerts: (sectionId: number, date: string, studentIds: number[]) =>
+    data(api.post<SendReport>(`/attendance/sections/${sectionId}/absence-alerts`, { studentIds }, { params: { date } })),
 }

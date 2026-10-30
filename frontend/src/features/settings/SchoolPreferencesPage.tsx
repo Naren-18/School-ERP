@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { App, Button, Card, Checkbox, Col, Form, Input, Row, Skeleton, Switch, Typography } from 'antd'
+import { WhatsAppOutlined } from '@ant-design/icons'
 import { schoolApi, type DayOfWeek, type SchoolSettings } from '../../api/school'
 import { PageHeader } from '../../components/PageHeader'
 import { useFormErrors } from '../../components/useFormErrors'
@@ -13,6 +14,13 @@ const MODULES: { key: keyof SchoolSettings['modules']; label: string; help: stri
   { key: 'fees', label: 'Fees', help: 'Fee plans, collection and receipts' },
   { key: 'exams', label: 'Exams', help: 'Marks entry and report cards' },
   { key: 'certificates', label: 'Certificates', help: 'Bonafide and transfer certificates' },
+]
+
+const MESSAGES: { key: keyof SchoolSettings['messages']; label: string; help: string }[] = [
+  { key: 'absence', label: 'Absence alerts', help: 'Sent from Mark attendance, for the students you tick' },
+  { key: 'feeReminder', label: 'Fee reminders', help: 'Sent from Fee reports → Dues, for the students you tick' },
+  { key: 'paymentReceived', label: 'Payment confirmations', help: 'Sent automatically for every receipt' },
+  { key: 'resultsPublished', label: 'Results messages', help: 'Sent from Results once an exam is published' },
 ]
 
 const PREFIX_RULES = [
@@ -97,13 +105,30 @@ export function SchoolPreferencesPage() {
                 />
               </Form.Item>
             </Card>
-            <Card title="Report card">
+            <Card title="Report card" style={{ marginBottom: 16 }}>
               <Form.Item name={['reportCard', 'showRank']} valuePropName="checked" label="Show rank in class">
                 <Switch />
               </Form.Item>
               <Form.Item name={['reportCard', 'showAttendance']} valuePropName="checked" label="Show attendance">
                 <Switch />
               </Form.Item>
+            </Card>
+            <Card
+              title={
+                <span>
+                  <WhatsAppOutlined style={{ color: '#128c7e', marginRight: 8 }} />
+                  WhatsApp messages to parents
+                </span>
+              }
+            >
+              <Typography.Paragraph type="secondary">
+                Each message is charged by WhatsApp. Only parents who agreed on the admission form are messaged.
+              </Typography.Paragraph>
+              {MESSAGES.map((m) => (
+                <Form.Item key={m.key} name={['messages', m.key]} valuePropName="checked" label={m.label} extra={m.help}>
+                  <Switch />
+                </Form.Item>
+              ))}
             </Card>
           </Col>
         </Row>

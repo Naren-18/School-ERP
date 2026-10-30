@@ -112,41 +112,11 @@ public class FeeCollectionService {
 	public FeeDto.Receipt collect(FeeDto.CollectRequest request) {
 		Long schoolId = TenantContext.require();
 		Student student = studentService.requireVisible(request.studentId());
-
-		Map<Long, BigDecimal> wanted = new LinkedHashMap<>();
-		for (FeeDto.CollectLine line : request.lines()) {
-			if (wanted.put(line.dueId(), line.amount()) != null) {
-				throw new BadRequestException("The same due appears twice");
-			}
-		}
-		Map<Long, StudentFeeDue> byId = dues.lockBySchoolIdAndIdIn(schoolId, wanted.keySet())
-			.stream()
-			.collect(Collectors.toMap(StudentFeeDue::getId, Function.identity()));
-		if (byId.size() != wanted.size()) {
-			throw new NotFoundException("Due");
-		}
-		Set<Long> enrollmentIds = byId.values().stream().map(StudentFeeDue::getEnrollmentId).collect(Collectors.toSet());
-		if (enrollmentIds.size() != 1) {
-			throw new BadRequestException("Pay one academic year's dues per receipt");
-		}
-		Enrollment enrollment = enrollmentService.require(enrollmentIds.iterator().next());
-		if (!enrollment.getStudentId().equals(student.getId())) {
-			throw new NotFoundException("Due");
-		}
-
-		Map<Long, FeeDto.Due> dueViews = views.dues(byId.values())
-			.stream()
-			.collect(Collectors.toMap(FeeDto.Due::id, Function.identity()));
-		BigDecimal total = BigDecimal.ZERO;
-		for (Map.Entry<Long, BigDecimal> e : wanted.entrySet()) {
-			StudentFeeDue due = byId.get(e.getKey());
-			if (e.getValue().compareTo(due.getBalance()) > 0) {
-				FeeDto.Due v = dueViews.get(due.getId());
-				throw new ConflictException("₹" + e.getValue() + " is more than the ₹" + due.getBalance() + " still due for "
-						+ v.feeHeadName() + " – " + v.installmentName());
-			}
-			total = total.add(e.getValue());
-		}
+		Map<Long, BigDecimal> wanted = wanted(request.lines());
+		Checked checked = check(student, wanted, true);
+		Map<Long, StudentFeeDue> byId = checked.dues();
+		Enrollment enrollment = checked.enrollment();
+		BigDecimal total = checked.total();
 		if (request.paymentMode() == PaymentMode.CHEQUE && blank(request.referenceNo())) {
 			throw new BadRequestException("Enter the cheque number");
 		}
@@ -179,6 +149,67 @@ public class FeeCollectionService {
 		details.put("mode", receipt.getPaymentMode().name());
 		audit.log(AuditAction.CREATE, "fee_receipt", receipt.getId(), details);
 		return receipt(receipt.getId());
+	}
+
+	/**
+	 * Checks a payment the way {@link #collect} would, without taking it: used
+	 * before starting an online payment. Returns the total to pay.
+	 */
+	@Transactional(readOnly = true)
+	public BigDecimal checkPayable(Long studentId, List<FeeDto.CollectLine> lines) {
+		return check(studentService.requireVisible(studentId), wanted(lines), false).total();
+	}
+
+	/** The dues being paid (locked when collecting), their academic year's enrollment, and the total. */
+	private record Checked(Map<Long, StudentFeeDue> dues, Enrollment enrollment, BigDecimal total) {
+	}
+
+	private static Map<Long, BigDecimal> wanted(List<FeeDto.CollectLine> lines) {
+		Map<Long, BigDecimal> wanted = new LinkedHashMap<>();
+		for (FeeDto.CollectLine line : lines) {
+			if (wanted.put(line.dueId(), line.amount()) != null) {
+				throw new BadRequestException("The same due appears twice");
+			}
+		}
+		return wanted;
+	}
+
+	/**
+	 * The dues must exist, belong to this student and one academic year, and
+	 * each amount must not exceed what is still due.
+	 */
+	private Checked check(Student student, Map<Long, BigDecimal> wanted, boolean lock) {
+		Long schoolId = TenantContext.require();
+		Map<Long, StudentFeeDue> byId = (lock ? dues.lockBySchoolIdAndIdIn(schoolId, wanted.keySet())
+				: dues.findBySchoolIdAndIdIn(schoolId, wanted.keySet()))
+			.stream()
+			.collect(Collectors.toMap(StudentFeeDue::getId, Function.identity()));
+		if (byId.size() != wanted.size()) {
+			throw new NotFoundException("Due");
+		}
+		Set<Long> enrollmentIds = byId.values().stream().map(StudentFeeDue::getEnrollmentId).collect(Collectors.toSet());
+		if (enrollmentIds.size() != 1) {
+			throw new BadRequestException("Pay one academic year's dues per receipt");
+		}
+		Enrollment enrollment = enrollmentService.require(enrollmentIds.iterator().next());
+		if (!enrollment.getStudentId().equals(student.getId())) {
+			throw new NotFoundException("Due");
+		}
+
+		Map<Long, FeeDto.Due> dueViews = views.dues(byId.values())
+			.stream()
+			.collect(Collectors.toMap(FeeDto.Due::id, Function.identity()));
+		BigDecimal total = BigDecimal.ZERO;
+		for (Map.Entry<Long, BigDecimal> e : wanted.entrySet()) {
+			StudentFeeDue due = byId.get(e.getKey());
+			if (e.getValue().compareTo(due.getBalance()) > 0) {
+				FeeDto.Due v = dueViews.get(due.getId());
+				throw new ConflictException("₹" + e.getValue() + " is more than the ₹" + due.getBalance() + " still due for "
+						+ v.feeHeadName() + " – " + v.installmentName());
+			}
+			total = total.add(e.getValue());
+		}
+		return new Checked(byId, enrollment, total);
 	}
 
 	/** Cancels a receipt: the dues it paid become payable again. The receipt and its number stay. */

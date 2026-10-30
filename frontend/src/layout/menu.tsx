@@ -4,7 +4,7 @@ import {
   ReadOutlined, RiseOutlined, ScheduleOutlined, SettingOutlined, SolutionOutlined, TeamOutlined, UnorderedListOutlined,
   UploadOutlined, UserAddOutlined, TableOutlined, PieChartOutlined, WalletOutlined, DollarOutlined, FileTextOutlined,
   BarChartOutlined, ToolOutlined, ProfileOutlined, EditOutlined, TrophyOutlined, CommentOutlined, SafetyCertificateOutlined,
-  FileProtectOutlined, FormOutlined,
+  FileProtectOutlined, FormOutlined, WhatsAppOutlined,
 } from '@ant-design/icons'
 import type { Role } from '../api/auth'
 import type { Modules } from '../api/school'
@@ -89,6 +89,7 @@ export const MENU: readonly MenuEntry[] = [
       { path: '/certificates/templates', label: 'Templates', icon: <FormOutlined />, roles: PRINCIPAL },
     ],
   },
+  { path: '/messages', label: 'WhatsApp messages', icon: <WhatsAppOutlined />, roles: PRINCIPAL_ADMIN },
   {
     path: '/settings',
     label: 'Setup',

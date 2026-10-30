@@ -96,6 +96,33 @@ public final class FeeDto {
 	public record CancelRequest(@NotBlank(message = "A reason is required") @Size(max = 200) String reason) {
 	}
 
+	// --- WhatsApp fee reminders ----------------------------------------------
+
+	/** Students chosen on the dues report; the year is the current one unless given. */
+	public record ReminderRequest(Long academicYearId,
+			@NotEmpty(message = "Choose at least one student") @Size(max = 1000) List<@NotNull Long> studentIds) {
+	}
+
+	// --- Online payment at the counter (Razorpay) ----------------------------
+
+	/** Whether online payment is set up, and the public key the payment window needs. */
+	public record OnlineConfig(boolean enabled, String keyId) {
+	}
+
+	public record OnlineOrderRequest(@NotNull(message = "Student is required") Long studentId,
+			@NotEmpty(message = "Choose at least one due to pay") @Size(max = 50) List<@Valid CollectLine> lines) {
+	}
+
+	/** What the browser passes to the payment window. The amount is in paise. */
+	public record OnlineOrder(Long id, String orderId, long amountPaise, String currency, String keyId,
+			String schoolName, String studentName, String description, String contact) {
+	}
+
+	/** What the payment window returns on success; checked on the server before any receipt. */
+	public record OnlineCompleteRequest(@NotBlank String razorpayOrderId, @NotBlank String razorpayPaymentId,
+			@NotBlank String razorpaySignature) {
+	}
+
 	public record ReceiptLine(Long dueId, String installmentName, String feeHeadName, BigDecimal amount) {
 	}
 

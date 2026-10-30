@@ -117,6 +117,28 @@ class StudentImportTest extends StudentTestSupport {
 	}
 
 	@Test
+	void whatsappConsentColumnIsYesOrNoAndDefaultsToNo() throws Exception {
+		TestSchool school = fixtures.school("Consent Import School");
+		academic.basicSetup(school);
+		String csv = "admission_no,admission_date,first_name,gender,date_of_birth,class,section,father_name,father_phone,"
+				+ "whatsapp_consent\n"
+				+ "K1,10-06-2026,Kiran,M,05-01-2016,Class 5,A,Raju,9876500201,YES\n"
+				+ "K2,10-06-2026,Lata,F,05-01-2016,Class 5,A,Raju,9876500202,\n"
+				+ "K3,10-06-2026,Mohan,M,05-01-2016,Class 5,A,Raju,9876500203,maybe\n";
+		upload(school.principal(), csv, true)
+			.andExpect(jsonPath("$.validRows").value(2))
+			.andExpect(jsonPath("$.errors[0].row").value(4))
+			.andExpect(jsonPath("$.errors[0].field").value("whatsapp_consent"));
+
+		upload(school.principal(), csv.substring(0, csv.lastIndexOf("K3,")), false)
+			.andExpect(jsonPath("$.created").value(2));
+		long kiran = idOf(getAs(school.principal(), "/api/v1/students?q=Kiran"), "$.content[0].id");
+		getAs(school.principal(), "/api/v1/students/{id}", kiran).andExpect(jsonPath("$.whatsappConsent").value(true));
+		long lata = idOf(getAs(school.principal(), "/api/v1/students?q=Lata"), "$.content[0].id");
+		getAs(school.principal(), "/api/v1/students/{id}", lata).andExpect(jsonPath("$.whatsappConsent").value(false));
+	}
+
+	@Test
 	void missingColumnsAndRoles() throws Exception {
 		TestSchool school = fixtures.school("Columns School");
 		academic.basicSetup(school);

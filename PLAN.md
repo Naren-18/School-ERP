@@ -239,16 +239,55 @@ Frontend:
 
 ---
 
+## Phase 9b — Parent messages, online payment, demo wins
+
+Added after the hosted demo, for sales demos. Keys come from the environment; without
+them WhatsApp is log-only and online payment is hidden.
+
+Backend:
+- [x] `V3`: `student.whatsapp_consent`, `notification_log`, `online_payment`
+- [x] Consent on admission/edit and as a `whatsapp_consent` CSV column (YES/NO)
+- [x] `notification` module: `WhatsAppSender` (Meta Cloud API / log-only), `NotificationService` (consent, mobile number, per-school switches, parallel send, log, audit)
+- [x] School settings `messages` (absence, fee reminder, payment received, results) + in `/auth/me`
+- [x] Absence alerts per section and day (only students marked A; teachers own sections, today only)
+- [x] Fee reminders from the dues report; payment confirmation after every receipt (after commit)
+- [x] Results messages for published exams (principal/admin)
+- [x] Message log API (principal/admin)
+- [x] Razorpay at the counter: server-fixed order → signature + payment check → normal gap-free receipt, idempotent, refused payments and changed dues make no receipt
+- [x] Indian digit grouping for amounts (`Rupees`), also fixing PDFs ≥ ₹1 lakh
+
+Frontend:
+- [x] Mark attendance: "Tell parents of absent students" card
+- [x] Fee reports → Dues: tick students, Remind on WhatsApp
+- [x] Collect fee: Pay online (Razorpay checkout)
+- [x] Results: Tell parents dialog
+- [x] Preferences: WhatsApp message switches; admission form consent; profile consent tag; import help
+- [x] WhatsApp messages log page
+- [x] TC dialog: fees still due warning with "Issue the TC anyway"
+- [x] Dashboard redesign: greeting band with quick actions, icon tiles, grouped sections
+
+Tests:
+- [x] Absence alerts (consent, failures, re-send, teacher scope, switches, log, School A vs B, module off)
+- [x] Fee reminders, payment confirmations, online payment (forged signature, double completion, refused payment, dues changed, School A vs B)
+- [x] Results messages; CSV consent column; `Rupees`
+
+**Acceptance:** with stand-in WhatsApp and Razorpay, every flow works in the browser at
+desktop and 360 px; with real test keys, a parent phone registered in Meta receives
+an absence alert and a Razorpay test payment becomes a receipt. (The second half
+waits for the Meta account and approved templates.)
+
+---
+
 ## Phase 10 — Production deployment
 
-- [x] Backend multi-stage `Dockerfile` (build with Maven, run on JRE 21 slim, `-XX:MaxRAMPercentage=60`)
-- [x] Frontend built to static files, served by Caddy
-- [x] `docker-compose.prod.yml`: app, postgres (volume), caddy (auto HTTPS, `/api` → app, everything else → SPA with fallback to `index.html`)
-- [x] Prod config from env; `FileStorage` R2 implementation
-- [x] Nightly `pg_dump` → compressed → uploaded to R2, keep 14 days; documented restore steps (test a restore once)
-- [x] Health check endpoint for uptime monitoring
-- [x] Deployment script / Makefile: `make deploy` (pull, build, migrate, restart)
-- [x] Gzip/Brotli + long cache headers for hashed frontend assets
+- [x] Backend multi-stage `Dockerfile` (build with Maven, run on JRE 21 slim, `-XX:MaxRAMPercentage=60`) (done for the demo: `backend/Dockerfile`)
+- [x] Frontend built to static files, served by Caddy (done for the demo: `deploy/demo`)
+- [ ] `docker-compose.prod.yml`: app, postgres (volume), caddy (auto HTTPS, `/api` → app, everything else → SPA with fallback to `index.html`)
+- [ ] Prod config from env; `FileStorage` R2 implementation
+- [ ] Nightly `pg_dump` → compressed → uploaded to R2, keep 14 days; documented restore steps (test a restore once)
+- [x] Health check endpoint for uptime monitoring (`/actuator/health`)
+- [ ] Deployment script / Makefile: `make deploy` (pull, build, migrate, restart)
+- [x] Gzip/Brotli + long cache headers for hashed frontend assets (done for the demo: `deploy/demo/Caddyfile`)
 
 **Acceptance:** App runs at the real domain over HTTPS; a restore from backup works.
 
@@ -256,10 +295,10 @@ Frontend:
 
 ## Phase 11 — Demo polish
 
-- [x] Loading skeletons, empty states, friendly error messages everywhere
-- [x] Consistent page titles, breadcrumbs, Indian number/date formats
-- [x] Test every demo flow on a ~₹15k Android phone over mobile data
-- [x] Fix anything slower than 1 second
+- [ ] Loading skeletons, empty states, friendly error messages everywhere
+- [ ] Consistent page titles, breadcrumbs, Indian number/date formats
+- [ ] Test every demo flow on a ~₹15k Android phone over mobile data
+- [ ] Fix anything slower than 1 second
 - [x] Write `DEMO.md`: the exact click path (login → dashboard → admission → attendance on phone → fee collection + receipt → report cards → TC → switch school to show a completely different setup)
 
 **Acceptance:** Full demo path runs end-to-end on production with no errors.
@@ -268,6 +307,6 @@ Frontend:
 
 ## Out of scope for the MVP (roadmap slide only)
 
-Parent/student app, SMS/WhatsApp notifications, online payment gateway, transport,
+Parent/student app, SMS, WhatsApp beyond the four parent messages, parents paying online themselves (payment links), transport,
 library, hostel, payroll/HR, timetable, homework, multi-school group admin,
 self-service school onboarding UI.

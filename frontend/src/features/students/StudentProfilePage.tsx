@@ -5,7 +5,7 @@ import {
   App, Button, Card, DatePicker, Descriptions, Flex, Form, Input, InputNumber, Modal, Result, Skeleton, Space,
   Table, Tabs, Tag, Typography,
 } from 'antd'
-import { EditOutlined, LogoutOutlined, PhoneOutlined, SwapOutlined, UserAddOutlined } from '@ant-design/icons'
+import { EditOutlined, LogoutOutlined, PhoneOutlined, SwapOutlined, UserAddOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { errorMessage, isNotFound } from '../../api/client'
 import { studentsApi, type EnrollmentView, type StudentDetail } from '../../api/students'
@@ -185,7 +185,18 @@ function DetailsTab({ s }: { s: StudentDetail }) {
       </Descriptions>
 
       <div>
-        <Typography.Title level={5}>Parents / guardians</Typography.Title>
+        <Flex align="center" gap={8} wrap style={{ marginBottom: 8 }}>
+          <Typography.Title level={5} style={{ margin: 0 }}>
+            Parents / guardians
+          </Typography.Title>
+          {s.whatsappConsent ? (
+            <Tag color="green" icon={<WhatsAppOutlined />}>
+              WhatsApp messages: agreed
+            </Tag>
+          ) : (
+            <Tag icon={<WhatsAppOutlined />}>No WhatsApp consent</Tag>
+          )}
+        </Flex>
         <Flex gap={12} wrap>
           {s.guardians.map((g) => (
             <Card key={g.id} size="small" style={{ flex: '1 1 240px' }}>

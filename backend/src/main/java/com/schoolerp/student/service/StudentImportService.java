@@ -52,7 +52,7 @@ public class StudentImportService {
 	static final List<String> COLUMNS = List.of("admission_no", "admission_date", "first_name", "last_name", "gender",
 			"date_of_birth", "class", "section", "roll_no", "father_name", "father_phone", "mother_name",
 			"mother_phone", "guardian_name", "guardian_phone", "address", "mother_tongue", "social_category",
-			"religion", "caste", "aadhaar", "previous_school");
+			"religion", "caste", "aadhaar", "previous_school", "whatsapp_consent");
 
 	private static final Set<String> REQUIRED = Set.of("admission_no", "admission_date", "first_name", "gender",
 			"date_of_birth", "class", "section");
@@ -72,7 +72,7 @@ public class StudentImportService {
 	public String template() {
 		return Csv.write(List.of(COLUMNS,
 				List.of("1001", "10-06-2026", "Aarav", "Reddy", "MALE", "15-03-2016", "Class 5", "A", "", "Suresh Reddy",
-						"9876543210", "Lakshmi Reddy", "", "", "", "Kukatpally, Hyderabad", "Telugu", "", "", "", "", "")));
+						"9876543210", "Lakshmi Reddy", "", "", "", "Kukatpally, Hyderabad", "Telugu", "", "", "", "", "", "YES")));
 	}
 
 	@Transactional
@@ -160,12 +160,15 @@ public class StudentImportService {
 			}
 		}
 
+		boolean whatsappConsent = r.yesNo("whatsapp_consent");
+
 		if (r.hasErrors()) {
 			return Optional.empty();
 		}
 		StudentDto.Details details = new StudentDto.Details(admissionNo, admissionDate, firstName,
 				r.optional("last_name"), dob, gender, r.optional("mother_tongue"), category, r.optional("religion"),
-				r.optional("caste"), aadhaar, null, r.optional("address"), r.optional("previous_school"), null, guardians);
+				r.optional("caste"), aadhaar, null, r.optional("address"), r.optional("previous_school"), null, guardians,
+				whatsappConsent);
 		return Optional.of(new StudentDto.CreateRequest(details, new StudentDto.Placement(sectionId, rollNo, null)));
 	}
 
@@ -309,6 +312,22 @@ public class StudentImportService {
 				default -> {
 					error("gender", "Use MALE, FEMALE or OTHER");
 					yield null;
+				}
+			};
+		}
+
+		/** Yes/no column; empty means no. */
+		boolean yesNo(String column) {
+			String v = optional(column);
+			if (v == null) {
+				return false;
+			}
+			return switch (v.toUpperCase(Locale.ROOT)) {
+				case "Y", "YES", "TRUE", "1" -> true;
+				case "N", "NO", "FALSE", "0" -> false;
+				default -> {
+					error(column, "Use YES or NO");
+					yield false;
 				}
 			};
 		}

@@ -1,4 +1,5 @@
 import { api } from './client'
+import type { SendReport } from './notifications'
 import type { Page } from './users'
 
 export type PaymentMode = 'CASH' | 'UPI' | 'CHEQUE' | 'CARD' | 'BANK' | 'ONLINE'
@@ -143,6 +144,31 @@ export interface ClassSummary {
   collectedPercent: number | null
 }
 
+export interface OnlineConfig {
+  enabled: boolean
+  keyId: string | null
+}
+
+/** What the Razorpay payment window needs; the amount is in paise and fixed by the server. */
+export interface OnlineOrder {
+  id: number
+  orderId: string
+  amountPaise: number
+  currency: string
+  keyId: string
+  schoolName: string
+  studentName: string | null
+  description: string
+  contact: string | null
+}
+
+/** What the Razorpay payment window hands back on success. */
+export interface OnlinePaymentResult {
+  razorpayOrderId: string
+  razorpayPaymentId: string
+  razorpaySignature: string
+}
+
 const data = <T,>(p: Promise<{ data: T }>) => p.then((r) => r.data)
 
 export const feesApi = {
@@ -178,4 +204,13 @@ export const feesApi = {
     data(api.get<DueRow[]>('/fees/reports/dues', { params })),
   classSummary: (academicYearId?: number) =>
     data(api.get<ClassSummary[]>('/fees/reports/class-summary', { params: { academicYearId } })),
+
+  remind: (studentIds: number[], academicYearId?: number) =>
+    data(api.post<SendReport>('/fees/reminders', { studentIds, academicYearId })),
+
+  onlineConfig: () => data(api.get<OnlineConfig>('/fees/online/config')),
+  startOnline: (studentId: number, lines: { dueId: number; amount: number }[]) =>
+    data(api.post<OnlineOrder>('/fees/online/orders', { studentId, lines })),
+  completeOnline: (id: number, result: OnlinePaymentResult) =>
+    data(api.post<Receipt>(`/fees/online/orders/${id}/complete`, result)),
 }

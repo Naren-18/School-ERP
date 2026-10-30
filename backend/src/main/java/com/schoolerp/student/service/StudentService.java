@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -241,6 +245,33 @@ public class StudentService {
 			.orElseThrow(() -> new NotFoundException("Student"));
 	}
 
+	/**
+	 * Message contacts for students of the current school, keyed by student id.
+	 * Callers check what the user may see; ids of other schools are simply absent.
+	 */
+	@Transactional(readOnly = true)
+	public Map<Long, StudentDto.Contact> contacts(Collection<Long> studentIds) {
+		if (studentIds.isEmpty()) {
+			return Map.of();
+		}
+		Long schoolId = TenantContext.require();
+		Map<Long, List<Guardian>> byStudent = guardians.findBySchoolIdAndStudentIdIn(schoolId, studentIds)
+			.stream()
+			.sorted(Comparator.comparing(Guardian::isPrimary).reversed().thenComparing(Guardian::getId))
+			.collect(Collectors.groupingBy(Guardian::getStudentId));
+		Map<Long, StudentDto.Contact> result = new HashMap<>();
+		for (Student s : students.findBySchoolIdAndIdIn(schoolId, studentIds)) {
+			String phone = byStudent.getOrDefault(s.getId(), List.of())
+				.stream()
+				.map(Guardian::getPhone)
+				.filter(p -> p != null && !p.isBlank())
+				.findFirst()
+				.orElse(null);
+			result.put(s.getId(), new StudentDto.Contact(s.getId(), s.getFullName(), phone, s.isWhatsappConsent()));
+		}
+		return result;
+	}
+
 	/** Like {@link #require} but also applies the teacher's section scope (404 outside it). */
 	public Student requireVisible(Long id) {
 		Student student = require(id);
@@ -281,6 +312,9 @@ public class StudentService {
 		s.setAddress(blankToNull(d.address()));
 		s.setPreviousSchool(blankToNull(d.previousSchool()));
 		s.setPreviousTcNo(blankToNull(d.previousTcNo()));
+		if (d.whatsappConsent() != null) {
+			s.setWhatsappConsent(d.whatsappConsent());
+		}
 	}
 
 	private void replaceGuardians(Student student, List<StudentDto.GuardianInput> inputs) {
@@ -332,8 +366,8 @@ public class StudentService {
 				sensitive ? s.getCaste() : null,
 				sensitive && s.getAadhaarLast4() != null ? "XXXX XXXX " + s.getAadhaarLast4() : null,
 				s.getIdentificationMarks(), s.getAddress(), s.getPreviousSchool(), s.getPreviousTcNo(), s.getStatus(),
-				s.getLeftOn(), s.getLeavingReason(), s.getPhotoKey() != null, photoVersion, guardianViews, current,
-				history);
+				s.getLeftOn(), s.getLeavingReason(), s.getPhotoKey() != null, photoVersion, s.isWhatsappConsent(),
+				guardianViews, current, history);
 	}
 
 	private static String blankToNull(String value) {

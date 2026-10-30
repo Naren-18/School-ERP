@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,7 +21,9 @@ import com.schoolerp.auth.Access;
 import com.schoolerp.exam.dto.ExamDto;
 import com.schoolerp.exam.service.MarksService;
 import com.schoolerp.exam.service.ReportCardService;
+import com.schoolerp.exam.service.ResultMessageService;
 import com.schoolerp.exam.service.ResultService;
+import com.schoolerp.notification.dto.NotificationDto;
 import com.schoolerp.school.module.Module;
 import com.schoolerp.school.module.RequiresModule;
 
@@ -40,6 +43,8 @@ public class MarksController {
 	private final ResultService results;
 
 	private final ReportCardService reportCards;
+
+	private final ResultMessageService resultMessages;
 
 	@GetMapping("/{examId}/entry-options")
 	List<ExamDto.EntryOption> entryOptions(@PathVariable Long examId) {
@@ -66,6 +71,21 @@ public class MarksController {
 	@GetMapping("/{examId}/results")
 	ExamDto.ResultSheet results(@PathVariable Long examId, @RequestParam Long sectionId) {
 		return results.sectionSheet(examId, sectionId);
+	}
+
+	/** Which parents of the section were already sent the results message for this exam. */
+	@GetMapping("/{examId}/results/notifications")
+	@PreAuthorize(Access.PRINCIPAL_OR_ADMIN)
+	List<NotificationDto.History> resultMessageHistory(@PathVariable Long examId, @RequestParam Long sectionId) {
+		return resultMessages.history(examId, sectionId);
+	}
+
+	/** WhatsApp "results are out" to the parents of the chosen students (published exams only). */
+	@PostMapping("/{examId}/results/notify")
+	@PreAuthorize(Access.PRINCIPAL_OR_ADMIN)
+	NotificationDto.SendReport notifyParents(@PathVariable Long examId, @RequestParam Long sectionId,
+			@Valid @RequestBody NotificationDto.SendRequest request) {
+		return resultMessages.send(examId, sectionId, request);
 	}
 
 	/** Published exams of a student's year (current by default) and the weighted final. */

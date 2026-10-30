@@ -61,7 +61,9 @@ public final class StudentDto {
 			@Size(max = 150) String previousSchool,
 			@Size(max = 50) String previousTcNo,
 			@NotEmpty(message = "Add at least one parent or guardian") @Size(max = 4)
-			List<@Valid GuardianInput> guardians) {
+			List<@Valid GuardianInput> guardians,
+			/** OK to send WhatsApp messages to the primary contact. Null keeps the stored choice (no on admission). */
+			Boolean whatsappConsent) {
 	}
 
 	public record Placement(
@@ -102,7 +104,15 @@ public final class StudentDto {
 			Student.SocialCategory socialCategory, String religion, String caste, String aadhaarMasked,
 			String identificationMarks, String address, String previousSchool, String previousTcNo,
 			Student.Status status, LocalDate leftOn, String leavingReason, boolean hasPhoto, long photoVersion,
-			List<GuardianView> guardians, EnrollmentView currentEnrollment, List<EnrollmentView> enrollments) {
+			boolean whatsappConsent, List<GuardianView> guardians, EnrollmentView currentEnrollment,
+			List<EnrollmentView> enrollments) {
+	}
+
+	/**
+	 * Who to message about a student: the primary contact's mobile number (or the
+	 * first contact with one) and whether the parent agreed to WhatsApp messages.
+	 */
+	public record Contact(Long studentId, String fullName, String phone, boolean whatsappConsent) {
 	}
 
 	public record LeaveRequest(

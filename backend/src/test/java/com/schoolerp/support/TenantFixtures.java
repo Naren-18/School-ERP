@@ -114,7 +114,7 @@ public class TenantFixtures {
 		School entity = schools.findById(school.id()).orElseThrow();
 		SchoolSettings s = entity.getSettings();
 		entity.setSettings(new SchoolSettings(s.receiptPrefix(), s.certificatePrefix(), List.of(days), s.modules(),
-				s.reportCard()));
+				s.reportCard(), s.messages()));
 		schools.save(entity);
 	}
 
@@ -122,7 +122,13 @@ public class TenantFixtures {
 		School entity = schools.findById(school.id()).orElseThrow();
 		SchoolSettings s = entity.getSettings();
 		entity.setSettings(new SchoolSettings(s.receiptPrefix(), s.certificatePrefix(), s.weekOffDays(), modules,
-				s.reportCard()));
+				s.reportCard(), s.messages()));
+		schools.save(entity);
+	}
+
+	public void setMessages(TestSchool school, SchoolSettings.Messages messages) {
+		School entity = schools.findById(school.id()).orElseThrow();
+		entity.setSettings(entity.getSettings().withMessages(messages));
 		schools.save(entity);
 	}
 

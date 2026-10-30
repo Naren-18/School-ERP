@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.schoolerp.attendance.entity.Attendance;
+import com.schoolerp.notification.entity.NotificationLog;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
@@ -76,6 +77,18 @@ public final class AttendanceDto {
 
 	public record Today(LocalDate date, String nonWorkingReason, int enrolled, Counts counts, List<ClassToday> classes,
 			List<UnmarkedSection> unmarkedSections) {
+	}
+
+	/** A student marked absent, and the last WhatsApp alert tried for them that day (null if none). */
+	public record AbsentStudent(Long studentId, Integer rollNo, String fullName, NotificationLog.Status lastStatus,
+			OffsetDateTime lastAt) {
+	}
+
+	/**
+	 * Absence alerts for a section's day. {@code enabled} is the school's switch;
+	 * {@code connected} is false when WhatsApp keys are not set (messages only logged).
+	 */
+	public record AbsenceAlerts(boolean enabled, boolean connected, List<AbsentStudent> students) {
 	}
 
 }
