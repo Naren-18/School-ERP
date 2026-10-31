@@ -273,8 +273,7 @@ Tests:
 
 **Acceptance:** with stand-in WhatsApp and Razorpay, every flow works in the browser at
 desktop and 360 px; with real test keys, a parent phone registered in Meta receives
-an absence alert and a Razorpay test payment becomes a receipt. (The second half
-waits for the Meta account and approved templates.)
+an absence alert and a Razorpay test payment becomes a receipt. **Met on 31-10-2026.**
 
 ---
 
