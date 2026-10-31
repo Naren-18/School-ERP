@@ -22,7 +22,7 @@ share one deployment; each school is fully isolated, with its own logins and dat
 | 7 | Certificates (bonafide, TC), editable templates, report card remarks and co-scholastic grades | Done |
 | 8 | School dashboard: role-aware stats, donut, trend and comparison charts, teacher view | Done |
 | 9 | Demo data: three fictional schools, about 390 students each, a one-off seeder | Done |
-| 9b | Parent messages on WhatsApp (absence, fee reminder, payment, results; consent; log), online fee payment at the counter (Razorpay), TC dues warning, dashboard redesign | Done (WhatsApp and Razorpay tested with stand-ins; real keys not yet tried) |
+| 9b | Parent messages on WhatsApp (absence, fee reminder, payment, results; consent; log), online fee payment at the counter (Razorpay), TC dues warning, dashboard redesign | Done (verified with real WhatsApp and Razorpay test keys, 31-10-2026) |
 | 10 | Production deployment | Next |
 | 11 | Demo polish | Not started |
 

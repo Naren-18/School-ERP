@@ -771,13 +771,23 @@ ARCHITECTURE.md §8.
 log, School A vs B, module off), fee reminders, payment confirmations, online
 payment (forged signature, double completion, refused payment, dues changed, School
 A vs B), results messages, CSV consent column, `Rupees`. WhatsApp and Razorpay are
-replaced by stand-ins in tests (`FakeIntegrations`); the real services have not been
-called yet.
+replaced by stand-ins in tests (`FakeIntegrations`).
 
 **Browser check:** desktop and 360 px for the dashboard, attendance alerts (sent and
 logged), dues reminders, results dialog, TC warning, preferences, message log,
-admission form; no sideways scroll. Razorpay's own payment window was not opened
-(no keys in the check).
+admission form; no sideways scroll.
+
+**Real services (31-10-2026):**
+- **Razorpay test keys:** orders created, the payment window opened, a netbanking
+  test payment became an Online receipt. UPI did not show: Razorpay's `/methods`
+  reported it off for the account (an account setting, not the app).
+- **WhatsApp:** Meta business portfolio, developer app with the test number, and a
+  permanent system-user token (the API Setup token expired after about an hour, not
+  24 hours). The four templates were created through the Graph API because the
+  template page in WhatsApp Manager kept failing. Meta refused `payment_received` at
+  first ("variables can't be at the start or end"), so its text now ends with
+  "Thank you." All four were approved about a day later. An absence alert from the
+  attendance screen then arrived on a registered phone.
 
 ---
 

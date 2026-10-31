@@ -809,8 +809,14 @@ Other settings:
   - **Sending is synchronous:** a 1,000-parent reminder takes tens of seconds in one
     request. A background job is the next step for whole-school sends.
   - **English templates only**; Telugu would be a second set of templates.
-  - **Not tried against the real services yet**: covered by tests with stand-ins
-    (`FakeIntegrations`); first real run needs the keys and approved templates.
+  - **Tests use stand-ins** (`FakeIntegrations`), so a change in Meta's or Razorpay's
+    API only shows up in a real run. Verified by hand with real test keys on
+    31-10-2026: an absence alert reached a registered phone, and a Razorpay test
+    payment (netbanking) became an Online receipt.
+  - **Meta test mode** delivers only to the (up to 5) registered recipient phones; the
+    test sender number is Meta's, not the school's.
+  - **UPI is off on the current Razorpay test account** (a Razorpay account setting,
+    not the app); cards, netbanking and wallets work.
 - **Fixed: amounts in PDFs above ₹99,999 were grouped the Western way** (₹123,456.00) because
   Java's en-IN format groups in threes; fixed with `Rupees` (receipts, report cards,
   certificates, WhatsApp).
